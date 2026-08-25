@@ -587,8 +587,12 @@ export default function LockConsole() {
   };
 
   const refreshCurrentView = () => {
-    if (currentRoom) {
+    if (currentRoom && selected) {
       void loadSelected();
+      return;
+    }
+    if (currentRoom) {
+      void loadOverviewSnapshots([currentRoom]);
       return;
     }
     if (currentBuilding && currentBuildingStatusKey) {
