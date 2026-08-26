@@ -59,11 +59,37 @@ export type SpecAction = {
   outputPiids: number[];
 };
 
+export type SpecEvent = {
+  name: string;
+  description: string;
+  siid: number;
+  eiid: number;
+  argumentPiids: number[];
+};
+
 export type DeviceSpec = {
   name: string;
   model: string;
   properties: SpecProperty[];
   actions: SpecAction[];
+  events: SpecEvent[];
+};
+
+export type XiaomiLockOperationLog = {
+  key: string;
+  action: 'lock' | 'unlock' | 'door' | 'failure' | 'other';
+  title: string;
+  detail: string;
+  operationType: number;
+  operationId: number | null;
+  success: boolean | null;
+  time: number;
+};
+
+export type XiaomiLockOperationLogList = {
+  entries: XiaomiLockOperationLog[];
+  syncedAt: number;
+  source: 'xiaomi-cloud';
 };
 
 export type XiaomiLockCloudPassword = {
@@ -74,6 +100,16 @@ export type XiaomiLockCloudPassword = {
   passwordId: number | null;
   createdAt: number | null;
   deletable: boolean;
+  startsAt: number | null;
+  endsAt: number | null;
+  repeat: number | null;
+};
+
+export type XiaomiLockOneTimePassword = {
+  key: string;
+  generatedAt: number;
+  startsAt: number;
+  endsAt: number;
 };
 
 export type XiaomiLockCloudUser = {
@@ -85,6 +121,7 @@ export type XiaomiLockCloudUser = {
 export type XiaomiLockCloudPasswordList = {
   entries: XiaomiLockCloudPassword[];
   users: XiaomiLockCloudUser[];
+  oneTimePasswords: XiaomiLockOneTimePassword[];
   syncedAt: number;
   source: 'xiaomi-cloud';
 };

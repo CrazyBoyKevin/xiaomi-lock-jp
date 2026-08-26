@@ -3,12 +3,16 @@ import { refreshXiaomiAuth } from './auth-refresh';
 import type {
   DeviceSpec,
   SpecAction,
+  SpecEvent,
   SpecProperty,
   XiaomiAuth,
   XiaomiDevice,
   XiaomiInventory,
   XiaomiLockCloudPassword,
   XiaomiLockCloudPasswordList,
+  XiaomiLockOneTimePassword,
+  XiaomiLockOperationLog,
+  XiaomiLockOperationLogList,
   XiaomiRegion,
 } from './types';
 
@@ -181,6 +185,7 @@ export async function getDeviceSpec(model: string): Promise<DeviceSpec> {
   const i18n = content.props.i18n?.zh_cn ?? {};
   const properties: SpecProperty[] = [];
   const actions: SpecAction[] = [];
+  const events: SpecEvent[] = [];
 
   for (const service of content.props.tree.services ?? []) {
     for (const property of service.properties ?? []) {
@@ -209,10 +214,150 @@ export async function getDeviceSpec(model: string): Promise<DeviceSpec> {
         outputPiids: action.out ?? [],
       });
     }
+    for (const event of service.events ?? []) {
+      const description = i18n[`service:${String(service.iid).padStart(3, '0')}:event:${String(event.iid).padStart(3, '0')}`] || event.description || event.type;
+      events.push({
+        name: event.type,
+        description,
+        siid: service.iid,
+        eiid: event.iid,
+        argumentPiids: event.arguments ?? [],
+      });
+    }
   }
-  const spec = { name: product.name, model: product.model, properties, actions };
+  const spec = { name: product.name, model: product.model, properties, actions, events };
   deviceSpecCache.set(model, { value: spec, expiresAt: Date.now() + DEVICE_SPEC_CACHE_TTL_MS });
   return spec;
+}
+
+const LOCK_OPERATION_LABELS: Record<number, { action: XiaomiLockOperationLog['action']; title: string }> = {
+  0: { action: 'unlock', title: 'Matter 开锁' },
+  1: { action: 'lock', title: 'Matter 上锁' },
+  2: { action: 'lock', title: '手动上锁' },
+  3: { action: 'lock', title: 'App 上锁' },
+  4: { action: 'unlock', title: '一键开锁' },
+  5: { action: 'lock', title: '一键上锁' },
+  6: { action: 'unlock', title: '密码开锁' },
+  7: { action: 'unlock', title: '指纹开锁' },
+  8: { action: 'unlock', title: '手动开锁' },
+  9: { action: 'unlock', title: 'App 开锁' },
+  10: { action: 'unlock', title: '一次性密码开锁' },
+  11: { action: 'unlock', title: '周期密码开锁' },
+  12: { action: 'other', title: '添加指纹' },
+  13: { action: 'other', title: '删除指纹' },
+  14: { action: 'other', title: '添加密码' },
+  15: { action: 'other', title: '删除密码' },
+  16: { action: 'unlock', title: '应急开锁' },
+  17: { action: 'lock', title: '键盘一键上锁' },
+  18: { action: 'lock', title: '自动上锁' },
+  19: { action: 'door', title: '门已关闭' },
+  20: { action: 'failure', title: '开锁失败' },
+  21: { action: 'failure', title: '上锁失败' },
+};
+
+function parsedLogValue(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); }
+  catch { return value; }
+}
+
+function logArgument(value: unknown, argumentIndex: number, piid: number): unknown {
+  const parsed = parsedLogValue(value);
+  if (Array.isArray(parsed)) {
+    const matched = parsed.find((item) => item && typeof item === 'object' && Number((item as { piid?: unknown }).piid) === piid);
+    if (matched && typeof matched === 'object' && 'value' in matched) return (matched as { value?: unknown }).value;
+    const direct = parsed[argumentIndex];
+    if (direct && typeof direct === 'object' && 'value' in direct) return (direct as { value?: unknown }).value;
+    return direct;
+  }
+  if (!parsed || typeof parsed !== 'object') return undefined;
+  const record = parsed as Record<string, unknown>;
+  const nested = record.arguments ?? record.args ?? record.params ?? record.value;
+  if (nested !== undefined && nested !== parsed) return logArgument(nested, argumentIndex, piid);
+  return record[String(piid)] ?? record[`piid.${piid}`];
+}
+
+function unixMilliseconds(value: unknown, fallback: unknown) {
+  const numeric = Number(value ?? fallback);
+  if (!Number.isFinite(numeric) || numeric <= 0) return Date.now();
+  return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+}
+
+function rawLogRows(value: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(value)) return value.filter((row): row is Record<string, unknown> => Boolean(row && typeof row === 'object'));
+  if (!value || typeof value !== 'object') return [];
+  const record = value as Record<string, unknown>;
+  for (const key of ['list', 'logs', 'data', 'result']) {
+    if (Array.isArray(record[key])) return rawLogRows(record[key]);
+  }
+  return [];
+}
+
+export async function getLockOperationLogs(
+  auth: XiaomiAuth,
+  operation: { did: string; model: string; limit?: number },
+): Promise<XiaomiLockOperationLogList> {
+  const spec = await getDeviceSpec(operation.model);
+  const operationEvent = spec.events.find((event) => event.name === 'operation-log');
+  if (!operationEvent) throw new Error('当前门锁规格未公开开关日志事件');
+
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const eventKey = `${operationEvent.siid}.${operationEvent.eiid}`;
+  const limit = Math.min(Math.max(operation.limit ?? 50, 1), 50);
+  const timeStart = nowSeconds - 90 * 24 * 60 * 60;
+  let result: unknown;
+  try {
+    result = await miRequest(auth, '/user/get_user_device_data', {
+      did: operation.did, type: 'event', key: eventKey,
+      time_start: timeStart, time_end: nowSeconds, limit,
+    });
+  } catch {
+    try {
+      result = await miRequest(auth, '/v2/user/get_user_device_data', {
+        did: operation.did, type: 'event', key: eventKey,
+        time_start: timeStart, time_end: nowSeconds, limit,
+      });
+    } catch {
+      // Older mainland accounts can expose only the aggregated timeline.
+      result = await miRequest(auth, '/v2/user/get_user_device_log', {
+        did: operation.did, limit, time_start: timeStart, time_end: nowSeconds,
+      });
+    }
+  }
+
+  const entries = rawLogRows(result).flatMap((row, index): XiaomiLockOperationLog[] => {
+    const rowKey = String(row.key ?? row.event ?? row.type ?? '');
+    const rowSiid = Number(row.siid);
+    const rowEiid = Number(row.eiid);
+    const matchesEvent = rowKey === eventKey || rowKey.endsWith(`.${eventKey}`)
+      || (rowSiid === operationEvent.siid && rowEiid === operationEvent.eiid);
+    if (!matchesEvent) return [];
+
+    const value = row.value ?? row.arguments ?? row.params;
+    const resultValue = Number(logArgument(value, 0, 3));
+    const operationType = Number(logArgument(value, 1, 1));
+    const operationIdValue = Number(logArgument(value, 2, 4));
+    if (!Number.isInteger(operationType)) return [];
+    if ([12, 13, 14, 15].includes(operationType)) return [];
+    const label = LOCK_OPERATION_LABELS[operationType] ?? { action: 'other' as const, title: `门锁操作 ${operationType}` };
+    const success = resultValue === 1 ? true : resultValue === 0 ? false : null;
+    const operationId = Number.isInteger(operationIdValue) ? operationIdValue : null;
+    const time = unixMilliseconds(logArgument(value, 4, 6), row.time ?? row.timestamp ?? row.updateTime);
+    const detailParts = [success === false ? '执行失败' : success === true ? '执行成功' : '结果未知'];
+    if (operationId !== null && operationId !== 0) detailParts.push(`操作编号 ${operationId}`);
+    return [{
+      key: `${time}:${rowKey || eventKey}:${operationType}:${operationId ?? 'none'}:${index}`,
+      action: success === false ? 'failure' : label.action,
+      title: success === false && !/失败$/.test(label.title) ? `${label.title}失败` : label.title,
+      detail: detailParts.join(' · '),
+      operationType,
+      operationId,
+      success,
+      time,
+    }];
+  }).sort((left, right) => right.time - left.time);
+
+  return { entries, syncedAt: Date.now(), source: 'xiaomi-cloud' };
 }
 
 type PasswordOperation =
@@ -226,7 +371,34 @@ type PasswordOperation =
       userMode: 'existing' | 'new';
       userId?: number;
     }
-  | { mode: 'delete'; did: string; model: string; userId: number; passwordId: number };
+  | { mode: 'delete'; did: string; model: string; userId: number; passwordId: number }
+  | { mode: 'delete-user'; did: string; model: string; userId: number }
+  | {
+      mode: 'create-temporary';
+      did: string;
+      model: string;
+      pin: string;
+      name: string;
+      startsAt: number;
+      endsAt: number;
+    }
+  | {
+      mode: 'update-temporary';
+      did: string;
+      model: string;
+      name: string;
+      startsAt: number;
+      endsAt: number;
+      visitorId?: number;
+      periodicCipherId?: number;
+    }
+  | {
+      mode: 'delete-temporary';
+      did: string;
+      model: string;
+      visitorId: number;
+      periodicCipherId: number;
+    };
 
 type MiotActionReply = { code?: number; out?: unknown[] };
 
@@ -349,16 +521,32 @@ function timestampField(record: Record<string, unknown>) {
   return milliseconds > Date.UTC(2000, 0, 1) && milliseconds < Date.UTC(2100, 0, 1) ? milliseconds : null;
 }
 
+function epochField(record: Record<string, unknown>, names: string[]) {
+  const value = numericField(record, names, 1, Number.MAX_SAFE_INTEGER);
+  if (!value) return null;
+  const milliseconds = value < 10_000_000_000 ? value * 1000 : value;
+  return milliseconds > Date.UTC(2000, 0, 1) && milliseconds < Date.UTC(2100, 0, 1) ? milliseconds : null;
+}
+
 function normalizeCloudPasswords(value: unknown, kind: 'user' | 'visitor') {
   const entries: XiaomiLockCloudPassword[] = [];
   const emitted = new Set<string>();
 
-  const visit = (raw: unknown, inheritedUserId?: number, inheritedName?: string): number => {
+  const visit = (
+    raw: unknown,
+    inheritedUserId?: number,
+    inheritedName?: string,
+    inheritedStartsAt: number | null = null,
+    inheritedEndsAt: number | null = null,
+    inheritedRepeat: number | null = null,
+  ): number => {
     const parsed = parseEmbeddedJson(raw);
-    if (Array.isArray(parsed)) return parsed.reduce((count, item) => count + visit(item, inheritedUserId, inheritedName), 0);
+    if (Array.isArray(parsed)) return parsed.reduce((count, item) => count + visit(item, inheritedUserId, inheritedName, inheritedStartsAt, inheritedEndsAt, inheritedRepeat), 0);
     if (!parsed || typeof parsed !== 'object') return 0;
     const record = parsed as Record<string, unknown>;
-    const userId = numericField(record, ['uid', 'user_id', 'userId', 'userid'], 0, 49) ?? inheritedUserId;
+    const userId = numericField(record, kind === 'visitor'
+      ? ['vid', 'visitor_id', 'visitorId', 'visitorid', 'uid', 'user_id', 'userId', 'userid']
+      : ['uid', 'user_id', 'userId', 'userid'], 0, kind === 'visitor' ? 65535 : 49) ?? inheritedUserId;
     const passwordName = textField(record, [
       'pName', 'password_name', 'passwordName', 'password_nickname', 'passwordNickname',
       'pwd_name', 'pwdName', 'key_name', 'keyName',
@@ -366,15 +554,20 @@ function normalizeCloudPasswords(value: unknown, kind: 'user' | 'visitor') {
     const name = passwordName
       ?? textField(record, ['uName', 'name', 'nickname', 'user_name', 'userName', 'remark', 'alias'])
       ?? inheritedName;
-    const passwordId = numericField(record, ['pid', 'password_id', 'passwordId', 'passwordid', 'pwd_id', 'pwdId', 'key_id', 'keyId'], 0, 65535);
+    const passwordId = numericField(record, kind === 'visitor'
+      ? ['pcid', 'periodic_cipher_id', 'periodicCipherId', 'periodic_id', 'periodicId', 'pid', 'password_id', 'passwordId', 'passwordid', 'pwd_id', 'pwdId', 'key_id', 'keyId']
+      : ['pid', 'password_id', 'passwordId', 'passwordid', 'pwd_id', 'pwdId', 'key_id', 'keyId'], 0, 65535);
+    const startsAt = epochField(record, ['starttime', 'start_time', 'startTime', 'starts_at', 'startsAt', 'periodic_start_time', 'periodicStartTime']) ?? inheritedStartsAt;
+    const endsAt = epochField(record, ['expiretime', 'endtime', 'end_time', 'endTime', 'ends_at', 'endsAt', 'periodic_end_time', 'periodicEndTime']) ?? inheritedEndsAt;
+    const repeat = numericField(record, ['repeat', 'periodic_repeat', 'periodicRepeat'], 0, 4) ?? inheritedRepeat;
     let nestedCount = 0;
 
     for (const [key, nested] of Object.entries(record)) {
       if (['uid', 'user_id', 'userId', 'userid', 'uName', 'name', 'nickname', 'user_name', 'userName', 'remark', 'alias'].includes(key)) continue;
-      const numericKeyUserId = /^\d{1,2}$/.test(key) && Number(key) <= 49 && nested && typeof nested === 'object'
+      const numericKeyUserId = /^\d{1,5}$/.test(key) && Number(key) <= (kind === 'visitor' ? 65535 : 49) && nested && typeof nested === 'object'
         ? Number(key)
         : undefined;
-      nestedCount += visit(nested, numericKeyUserId ?? userId, name);
+      nestedCount += visit(nested, numericKeyUserId ?? userId, name, startsAt, endsAt, repeat);
     }
 
     // s_user_list keeps the user object after its last credential is removed.
@@ -392,6 +585,9 @@ function normalizeCloudPasswords(value: unknown, kind: 'user' | 'visitor') {
       passwordId: stablePasswordId,
       createdAt: timestampField(record),
       deletable: stablePasswordId !== 65535,
+      startsAt,
+      endsAt,
+      repeat,
     });
     return nestedCount + 1;
   };
@@ -505,6 +701,62 @@ async function latestLockUserData(
   return null;
 }
 
+function collectOneTimePasswordRecords(
+  value: unknown,
+  entries: Map<string, XiaomiLockOneTimePassword>,
+  depth = 0,
+) {
+  if (depth > 8) return;
+  const parsed = parseEmbeddedJson(value);
+  if (Array.isArray(parsed)) {
+    for (const item of parsed) collectOneTimePasswordRecords(item, entries, depth + 1);
+    return;
+  }
+  if (!parsed || typeof parsed !== 'object') return;
+  const record = parsed as Record<string, unknown>;
+  const generatedAt = epochField(record, ['maketime', 'make_time', 'makeTime', 'time']);
+  const startsAt = epochField(record, ['starttime', 'start_time', 'startTime']);
+  const endsAt = epochField(record, ['expiretime', 'expire_time', 'expireTime', 'endtime', 'end_time', 'endTime']);
+  if (generatedAt && startsAt && endsAt && endsAt > startsAt) {
+    const key = `${generatedAt}:${startsAt}:${endsAt}`;
+    entries.set(key, { key, generatedAt, startsAt, endsAt });
+  }
+  for (const nested of Object.values(record)) collectOneTimePasswordRecords(nested, entries, depth + 1);
+}
+
+async function getLockOneTimePasswords(
+  auth: XiaomiAuth,
+  operation: Pick<PasswordOperation, 'did' | 'model'>,
+) {
+  const now = Math.floor(Date.now() / 1000);
+  let response: unknown;
+  try {
+    response = await miRequest(auth, '/user/get_user_device_data', {
+      did: operation.did,
+      key: 'device_lock',
+      type: 'prop',
+      time_start: 0,
+      time_end: now + 60,
+      limit: 5,
+    }, operation.model);
+  } catch {
+    response = await miRequest(auth, '/v2/user/get_user_device_data', {
+      did: operation.did,
+      key: 'device_lock',
+      type: 'prop',
+      time_start: 0,
+      time_end: now + 60,
+      limit: 5,
+    }, operation.model);
+  }
+  const entries = new Map<string, XiaomiLockOneTimePassword>();
+  collectOneTimePasswordRecords(response, entries);
+  const currentTime = Date.now();
+  return [...entries.values()]
+    .filter((entry) => entry.endsAt >= currentTime)
+    .sort((left, right) => right.generatedAt - left.generatedAt);
+}
+
 export async function getLockCloudPasswords(
   auth: XiaomiAuth,
   operation: Pick<PasswordOperation, 'did' | 'model'>,
@@ -523,13 +775,15 @@ export async function getLockCloudPasswords(
   ];
   const cloudUsers = userList.found ? normalizeCloudUsers(userList.value) : new Map<number, string>();
   const userData = await latestLockUserData(auth, operation);
+  const oneTimePasswords = await getLockOneTimePasswords(auth, operation);
   const activeCredentials = userData
     ? new Set(userData.credentials
       .filter((credential) => credential.status !== 0 && credential.passwordId !== 0)
       .map((credential) => `${credential.userId}:${credential.passwordId}`))
     : null;
   const entries = activeCredentials
-    ? cachedEntries.filter((entry) => entry.passwordId !== null && activeCredentials.has(`${entry.userId}:${entry.passwordId}`))
+    ? cachedEntries.filter((entry) => entry.kind === 'visitor'
+      || (entry.passwordId !== null && activeCredentials.has(`${entry.userId}:${entry.passwordId}`)))
     : cachedEntries;
   const passwordCountByUser = new Map<number, number>();
   for (const entry of entries) {
@@ -540,6 +794,7 @@ export async function getLockCloudPasswords(
     users: [...cloudUsers.entries()]
       .sort(([left], [right]) => left - right)
       .map(([userId, name]) => ({ userId, name, passwordCount: passwordCountByUser.get(userId) ?? 0 })),
+    oneTimePasswords,
     syncedAt: userData ? userData.time * 1000 : Date.now(),
     source: 'xiaomi-cloud',
   };
@@ -630,18 +885,189 @@ async function syncLockCloudNames(
   throw new Error('密码已创建，但米家云未确认用户名称和密码名称，请刷新列表检查');
 }
 
+async function readLockVisitorListCache(
+  auth: XiaomiAuth,
+  operation: Pick<PasswordOperation, 'did' | 'model'>,
+) {
+  const cached = await miRequest(auth, '/v2/device/batchgetdatas', [
+    { did: operation.did, props: ['prop.s_visitor_list'] },
+  ], operation.model);
+  const property = cloudPropertyValue(cached, 's_visitor_list');
+  if (!property.found) throw new Error('米家云没有返回可编辑的临时密码列表');
+  return parseEmbeddedJson(property.value);
+}
+
+function officialVisitorList(raw: unknown) {
+  const parsed = parseEmbeddedJson(raw);
+  if (!Array.isArray(parsed)) throw new Error('米家云返回的临时密码列表格式无效');
+  return parsed.map((item) => item && typeof item === 'object' && !Array.isArray(item)
+    ? { ...(item as Record<string, unknown>) }
+    : item);
+}
+
+function nextListIndex(items: unknown[]) {
+  const used = new Set(items.flatMap((item) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+    const index = Number((item as Record<string, unknown>).index);
+    return Number.isInteger(index) && index >= 0 ? [index] : [];
+  }));
+  let index = 0;
+  while (used.has(index)) index += 1;
+  return index;
+}
+
+function visitorPassSnapshot(raw: unknown, visitorId: number, periodicCipherId: number) {
+  const visitors = officialVisitorList(raw);
+  const visitor = visitors.find((item) => item && typeof item === 'object' && !Array.isArray(item)
+    && Number((item as Record<string, unknown>).uid) === visitorId) as Record<string, unknown> | undefined;
+  const passList = Array.isArray(visitor?.passList) ? visitor.passList : [];
+  const pass = passList.find((item) => item && typeof item === 'object' && !Array.isArray(item)
+    && Number((item as Record<string, unknown>).pid) === periodicCipherId) as Record<string, unknown> | undefined;
+  if (!visitor || !pass || typeof pass.password !== 'string') {
+    throw new Error('米家云端已找不到该临时密码，请刷新列表后重试');
+  }
+  return { visitors, visitor, pass, passList };
+}
+
+async function writeLockVisitorCloud(
+  auth: XiaomiAuth,
+  operation: Pick<PasswordOperation, 'did' | 'model'>,
+  change:
+    | { mode: 'create'; visitorId: number; periodicCipherId: number; name: string; credential: string; startsAt: number; endsAt: number; repeatEndTime: number }
+    | { mode: 'update'; visitorId: number; periodicCipherId: number; name: string; startsAt: number; endsAt: number; repeatEndTime: number }
+    | { mode: 'delete'; visitorId: number; periodicCipherId: number },
+) {
+  const current = officialVisitorList(await readLockVisitorListCache(auth, operation));
+  let updated = current;
+
+  if (change.mode === 'create') {
+    const visitorIndex = current.findIndex((item) => item && typeof item === 'object' && !Array.isArray(item)
+      && Number((item as Record<string, unknown>).uid) === change.visitorId);
+    const visitor = visitorIndex >= 0 ? current[visitorIndex] as Record<string, unknown> : undefined;
+    const passList = Array.isArray(visitor?.passList) ? [...visitor.passList] : [];
+    passList.push({
+      pid: change.periodicCipherId,
+      pName: change.name,
+      password: change.credential,
+      startTime: change.startsAt,
+      endTime: change.endsAt,
+      repeat: 0,
+      repeatEnd: false,
+      repeatEndTime: change.repeatEndTime,
+      index: nextListIndex(passList),
+    });
+    if (visitor && visitorIndex >= 0) {
+      updated = current.map((item, index) => index === visitorIndex ? { ...visitor, passList } : item);
+    } else {
+      updated = [...current, {
+        uid: change.visitorId,
+        uName: `访客 ${String(current.length + 1).padStart(2, '0')}`,
+        index: nextListIndex(current),
+        checked: false,
+        createTime: Date.now(),
+        passList,
+      }];
+    }
+  } else if (change.mode === 'update') {
+    const snapshot = visitorPassSnapshot(current, change.visitorId, change.periodicCipherId);
+    updated = snapshot.visitors.map((item) => item === snapshot.visitor ? {
+      ...snapshot.visitor,
+      passList: snapshot.passList.map((pass) => pass === snapshot.pass ? {
+        ...snapshot.pass,
+        pName: change.name,
+        startTime: change.startsAt,
+        endTime: change.endsAt,
+        repeat: 0,
+        repeatEnd: false,
+        repeatEndTime: change.repeatEndTime,
+      } : pass),
+    } : item);
+  } else {
+    const snapshot = visitorPassSnapshot(current, change.visitorId, change.periodicCipherId);
+    const remainingPasses = snapshot.passList.filter((pass) => pass !== snapshot.pass);
+    updated = remainingPasses.length
+      ? snapshot.visitors.map((item) => item === snapshot.visitor ? { ...snapshot.visitor, passList: remainingPasses } : item)
+      : snapshot.visitors.filter((item) => item !== snapshot.visitor);
+  }
+
+  await miRequest(auth, '/v2/device/batch_set_props', [{
+    did: operation.did,
+    props: { 'prop.s_visitor_list': JSON.stringify(updated) },
+  }], operation.model);
+
+  for (const delay of [300, 600, 1000, 1800]) {
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    const synced = await readLockVisitorListCache(auth, operation);
+    const entry = normalizeCloudPasswords(synced, 'visitor').find((item) => item.userId === change.visitorId
+      && item.passwordId === change.periodicCipherId);
+    if (change.mode === 'delete' ? !entry : entry?.name === change.name) return;
+  }
+  throw new Error(`门锁操作已成功，但米家云端尚未确认临时密码${change.mode === 'delete' ? '删除' : '列表更新'}，请稍后刷新`);
+}
+
+async function syncLockCloudUserDeletion(
+  auth: XiaomiAuth,
+  operation: Pick<PasswordOperation, 'did' | 'model'>,
+  userId: number,
+) {
+  const users = await readLockUserListCache(auth, operation);
+  const updatedUsers = users.filter((rawUser) => {
+    if (!rawUser || typeof rawUser !== 'object' || Array.isArray(rawUser)) return true;
+    return Number((rawUser as Record<string, unknown>).uid) !== userId;
+  });
+  if (updatedUsers.length === users.length) return;
+
+  await miRequest(auth, '/v2/device/batch_set_props', [{
+    did: operation.did,
+    props: { 'prop.s_user_list': JSON.stringify(updatedUsers) },
+  }], operation.model);
+
+  for (const delay of [300, 600, 1000, 1800]) {
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    const currentUsers = await readLockUserListCache(auth, operation);
+    const stillExists = currentUsers.some((rawUser) => rawUser && typeof rawUser === 'object'
+      && !Array.isArray(rawUser) && Number((rawUser as Record<string, unknown>).uid) === userId);
+    if (!stillExists) return;
+  }
+  throw new Error('门锁已删除用户，但米家云用户列表尚未确认更新，请稍后刷新');
+}
+
 async function availableLockUserId(auth: XiaomiAuth, operation: Extract<PasswordOperation, { mode: 'create' }>) {
-  // Slot 0 is the D100 owner. Xiaomi's plugin selects the first free ID from
-  // 0..49 after reading both cached user lists.
+  // Slot 0 is the D100 owner. Prefer a never-used ID above the current maximum
+  // before recycling gaps: a just-deleted slot can disappear from Xiaomi's
+  // cloud cache slightly before the lock firmware releases it, causing result
+  // code 8 (RepeatParam) when immediately reused.
   const usedIds = new Set<number>([0]);
   const cached = await miRequest(auth, '/v2/device/batchgetdatas', [
     { did: operation.did, props: ['prop.s_user_list', 'prop.s_visitor_list'] },
   ], operation.model);
   collectUserIdsFromCache(cached, usedIds);
-  for (let userId = 0; userId <= 49; userId += 1) {
+  const highestUsedId = Math.max(...usedIds);
+  for (let userId = highestUsedId + 1; userId <= 49; userId += 1) {
+    if (!usedIds.has(userId)) return userId;
+  }
+  for (let userId = 1; userId < highestUsedId; userId += 1) {
     if (!usedIds.has(userId)) return userId;
   }
   throw new Error('门锁的 50 个用户槽位已全部占用，请先删除一个旧用户');
+}
+
+async function availableLockVisitorId(
+  auth: XiaomiAuth,
+  operation: Extract<PasswordOperation, { mode: 'create-temporary' }>,
+) {
+  // The official D100J plugin allocates visitor IDs from the same 0–49 pool as
+  // permanent users. 65535 is only the "new cipher ID" sentinel; it is not a
+  // valid visitor ID for edit-periodic-cipher and causes result code 5.
+  const usedIds = new Set<number>();
+  const cached = await miRequest(auth, '/v2/device/batchgetdatas', [
+    { did: operation.did, props: ['prop.s_user_list', 'prop.s_visitor_list'] },
+  ], operation.model);
+  collectUserIdsFromCache(cached, usedIds);
+  for (let visitorId = 0; visitorId <= 49; visitorId += 1) {
+    if (!usedIds.has(visitorId)) return visitorId;
+  }
+  throw new Error('门锁的 50 个用户与访客槽位已全部占用，请先删除一个旧用户或访客');
 }
 
 function cacheLockSecret(auth: XiaomiAuth, did: string, value: string) {
@@ -856,6 +1282,44 @@ function passwordActionResult(outputs: Map<string, unknown>) {
   };
 }
 
+function passwordOperationName(operation: PasswordOperation) {
+  if (operation.mode === 'create') return '创建密码';
+  if (operation.mode === 'delete') return '删除密码';
+  if (operation.mode === 'delete-user') return '删除用户';
+  if (operation.mode === 'create-temporary') return '创建临时密码';
+  if (operation.mode === 'update-temporary') return '修改临时密码';
+  return '删除临时密码';
+}
+
+function lockPinIsTooSimple(pin: string) {
+  const digits = [...pin].map(Number);
+  return digits.every((digit) => digit === digits[0])
+    || digits.every((digit, index) => index === 0 || digit === digits[index - 1] + 1)
+    || digits.every((digit, index) => index === 0 || digit === digits[index - 1] - 1);
+}
+
+function lockManagementFailure(operation: PasswordOperation, code: number, protocol: 'result' | 'password-result') {
+  const operationName = passwordOperationName(operation);
+  if (protocol === 'password-result' && code === 2) return '该 6 位密码已被门锁使用，请更换一个不同的密码';
+  const reason = (() => {
+    switch (code) {
+      case 2: return '门锁内部处理错误，请稍后重试';
+      case 3: return operation.mode === 'create' ? '目标用户不存在或已被删除，请刷新用户列表' : '目标记录已不存在，请刷新列表';
+      case 4: return operation.mode === 'create' || operation.mode === 'create-temporary' ? '门锁密码存储空间已满，请先删除不用的密码或用户' : '门锁存储空间不足';
+      case 5: return operation.mode.includes('temporary')
+        ? '门锁拒绝了临时密码的访客编号、密码编号或时间组合；页面已重新读取米家云端槽位，请关闭窗口后重新创建'
+        : '门锁认为请求参数无效，请刷新设备数据后重试';
+      case 6: return '门锁处理超时，请确认 Wi-Fi 在线后重试';
+      case 7: return '门锁正在处理其他用户管理操作，请稍等几秒后重试';
+      case 8: return operation.mode === 'create' || operation.mode === 'create-temporary'
+        ? '该 6 位密码已被使用，或刚删除的用户编号尚未释放；请更换密码，或稍等后重试'
+        : '目标参数与门锁现有记录重复，请刷新列表后重试';
+      default: return `门锁返回了未识别的状态码 ${code}`;
+    }
+  })();
+  return `${operationName}失败：${reason}（设备状态码 ${code}）`;
+}
+
 async function refreshLockUserData(
   auth: XiaomiAuth,
   operation: Pick<PasswordOperation, 'did' | 'model'>,
@@ -899,9 +1363,9 @@ async function performPasswordAction(
   if (passwordResult !== undefined) {
     const code = Number(passwordResult);
     if (code !== 1) {
-      const operationName = operation.mode === 'create' ? '创建' : '删除';
-      const status = Number.isFinite(code) ? `（设备状态码 ${code} · ${spec.model}）` : '';
-      throw new Error(message || `门锁未确认密码${operationName}成功${status}`);
+      throw new Error(message || (Number.isFinite(code)
+        ? lockManagementFailure(operation, code, 'password-result')
+        : '门锁没有返回可识别的密码操作状态'));
     }
     return outputs;
   }
@@ -910,14 +1374,141 @@ async function performPasswordAction(
   if (result === true) return outputs;
   const code = Number(result);
   if (result !== false && result !== null && result !== undefined && (code === 0 || code === 1)) return outputs;
-  const operationName = operation.mode === 'create' ? '创建' : '删除';
-  if (result === undefined || result === null) throw new Error(`门锁未返回密码${operationName}结果`);
-  const status = Number.isFinite(code) ? String(code) : String(result);
-  throw new Error(message || `门锁未确认密码${operationName}成功（设备状态码 ${status} · ${spec.model}）`);
+  const operationName = passwordOperationName(operation);
+  if (result === undefined || result === null) throw new Error(`门锁未返回${operationName}结果`);
+  throw new Error(message || (Number.isFinite(code)
+    ? lockManagementFailure(operation, code, 'result')
+    : `门锁返回了无法识别的${operationName}结果：${String(result)}`));
 }
 
 export async function manageLockPassword(auth: XiaomiAuth, operation: PasswordOperation) {
   const spec = await getDeviceSpec(operation.model);
+
+  if (operation.mode === 'create-temporary' || operation.mode === 'update-temporary') {
+    if (operation.mode === 'create-temporary' && !/^\d{6}$/.test(operation.pin)) {
+      throw new Error('临时密码必须是 6 位数字');
+    }
+    if (operation.mode === 'create-temporary' && lockPinIsTooSimple(operation.pin)) {
+      throw new Error('临时密码不能全部相同，也不能使用连续递增或递减的数字');
+    }
+    const name = operation.name.trim();
+    if (!name || name.length > 32 || /[\u0000-\u001f\u007f]/.test(name)) {
+      throw new Error('临时密码名称必须为 1–32 个有效字符');
+    }
+    const now = Math.floor(Date.now() / 1000);
+    if (!Number.isSafeInteger(operation.startsAt) || !Number.isSafeInteger(operation.endsAt)
+      || operation.startsAt < 1 || operation.endsAt > 4_294_967_295) {
+      throw new Error('临时密码生效时间无效');
+    }
+    if (operation.endsAt <= operation.startsAt) throw new Error('临时密码失效时间必须晚于生效时间');
+    if (operation.endsAt <= now) throw new Error('临时密码失效时间必须晚于当前时间');
+    if (operation.mode === 'create-temporary' && operation.startsAt < now - 300) {
+      throw new Error('临时密码生效时间不能早于当前时间');
+    }
+    const action = spec.actions.find((entry) => entry.name === 'edit-periodic-cipher');
+    if (!action) throw new Error('这款门锁没有公开自定义时段临时密码能力');
+    const updating = operation.mode === 'update-temporary';
+    if (updating && (!Number.isSafeInteger(operation.visitorId) || !Number.isSafeInteger(operation.periodicCipherId)
+      || operation.visitorId === undefined || operation.periodicCipherId === undefined
+      || operation.visitorId < 0 || operation.visitorId > 49
+      || operation.periodicCipherId < 0 || operation.periodicCipherId >= 65535)) {
+      throw new Error('临时密码编号无效，请刷新云端列表后重试');
+    }
+    const credential = updating
+      ? 'not valid str'
+      : encryptLockUserPassword(operation.pin, operation.did, await deviceMac(auth, operation.did));
+    const requestedVisitorId = updating ? operation.visitorId! : await availableLockVisitorId(auth, operation);
+    const requestedPeriodicCipherId = updating ? operation.periodicCipherId! : 65535;
+    if (updating) {
+      visitorPassSnapshot(await readLockVisitorListCache(auth, operation), requestedVisitorId, requestedPeriodicCipherId);
+    }
+    // For a non-repeating password the official D100J plugin sends false and
+    // the request time here. The previous endsAt value was not the device's
+    // protocol combination and could be rejected as InvalidParam (5).
+    const repeatEndTime = Math.floor(Date.now() / 1000);
+    const outputs = await performPasswordAction(auth, operation, spec, action, {
+      'password-current': credential,
+      'visitor-id': requestedVisitorId,
+      'periodic-cipher-id': requestedPeriodicCipherId,
+      'edit-periodic-type': updating ? 2 : 0,
+      'periodic-start-time': operation.startsAt,
+      'periodic-end-time': operation.endsAt,
+      'periodic-repeat': 0,
+      'end-repeat-never': false,
+      'end-repeat-time': repeatEndTime,
+    });
+    const actionResult = passwordActionResult(outputs);
+    // The plugin keeps its locally allocated visitor ID and only consumes the
+    // periodic cipher ID returned by the action.
+    const visitorId = requestedVisitorId;
+    const periodicCipherId = Number(outputs.get('periodic-cipher-id') ?? requestedPeriodicCipherId);
+    if (!Number.isSafeInteger(visitorId) || !Number.isSafeInteger(periodicCipherId)
+      || visitorId < 0 || visitorId > 49 || periodicCipherId < 0 || periodicCipherId >= 65535) {
+      throw new Error(`门锁已接收${updating ? '修改' : '创建'}请求，但没有返回有效的临时密码编号，请同步列表确认`);
+    }
+    if (actionResult.asynchronous) await new Promise((resolve) => setTimeout(resolve, 700));
+    const refresh = await refreshLockUserData(auth, operation, spec);
+    await writeLockVisitorCloud(auth, operation, updating ? {
+      mode: 'update', visitorId, periodicCipherId, name,
+      startsAt: operation.startsAt, endsAt: operation.endsAt, repeatEndTime,
+    } : {
+      mode: 'create', visitorId, periodicCipherId, name, credential,
+      startsAt: operation.startsAt, endsAt: operation.endsAt, repeatEndTime,
+    });
+    return {
+      visitorId,
+      periodicCipherId,
+      name,
+      startsAt: operation.startsAt * 1000,
+      endsAt: operation.endsAt * 1000,
+      asynchronous: actionResult.asynchronous,
+      userDataRefreshRequested: refresh.requested,
+    };
+  }
+
+  if (operation.mode === 'delete-temporary') {
+    if (!Number.isSafeInteger(operation.visitorId) || !Number.isSafeInteger(operation.periodicCipherId)
+      || operation.visitorId < 0 || operation.visitorId > 49
+      || operation.periodicCipherId < 0 || operation.periodicCipherId >= 65535) {
+      throw new Error('临时密码编号无效，请刷新云端列表后重试');
+    }
+    const snapshot = visitorPassSnapshot(
+      await readLockVisitorListCache(auth, operation),
+      operation.visitorId,
+      operation.periodicCipherId,
+    );
+    const deletingVisitor = snapshot.passList.length === 1;
+    const action = deletingVisitor
+      ? spec.actions.find((entry) => entry.siid === 24 && entry.aiid === 8)
+      : spec.actions.find((entry) => entry.name === 'edit-periodic-cipher');
+    if (!action) throw new Error('这款门锁没有公开临时密码删除能力');
+    const outputs = await performPasswordAction(auth, operation, spec, action, deletingVisitor ? {
+      'visitor-id': operation.visitorId,
+    } : {
+      // D100J requires the existing encrypted credential and schedule on
+      // deletion. Blank strings and zeroed timestamps are InvalidParam.
+      'password-current': snapshot.pass.password,
+      'visitor-id': operation.visitorId,
+      'periodic-cipher-id': operation.periodicCipherId,
+      'edit-periodic-type': 1,
+      'periodic-start-time': Number(snapshot.pass.startTime) || 0,
+      'periodic-end-time': Number(snapshot.pass.endTime) || 0,
+      'periodic-repeat': Number(snapshot.pass.repeat) || 0,
+      'end-repeat-never': Boolean(snapshot.pass.repeatEnd),
+      'end-repeat-time': Number(snapshot.pass.repeatEndTime) || 0,
+    });
+    const actionResult = passwordActionResult(outputs);
+    if (actionResult.asynchronous) await new Promise((resolve) => setTimeout(resolve, 450));
+    const refresh = await refreshLockUserData(auth, operation, spec);
+    await writeLockVisitorCloud(auth, operation, {
+      mode: 'delete', visitorId: operation.visitorId, periodicCipherId: operation.periodicCipherId,
+    });
+    return {
+      deleted: true,
+      asynchronous: actionResult.asynchronous,
+      userDataRefreshRequested: refresh.requested,
+    };
+  }
 
   if (operation.mode === 'create') {
     if (!/^\d{6}$/.test(operation.pin)) throw new Error('门锁密码必须是 6 位数字');
@@ -984,6 +1575,32 @@ export async function manageLockPassword(auth: XiaomiAuth, operation: PasswordOp
       passwordName,
       createdAt: Date.now(),
       asynchronous: actionResult.asynchronous || renameResult.asynchronous,
+      userDataRefreshRequested: refresh.requested,
+    };
+  }
+
+  if (operation.mode === 'delete-user') {
+    if (!Number.isSafeInteger(operation.userId) || operation.userId < 1 || operation.userId > 49) {
+      throw new Error(operation.userId === 0 ? '主用户不能删除' : '无效的门锁用户编号');
+    }
+    const cloud = await getLockCloudPasswords(auth, operation);
+    if (!cloud.users.some((user) => user.userId === operation.userId)) {
+      throw new Error('所选用户已不在米家云端列表中，请重新同步');
+    }
+    const action = spec.actions.find((entry) => entry.name === 'delete-user');
+    if (!action) throw new Error('这款门锁没有公开用户删除能力');
+    const outputs = await performPasswordAction(auth, operation, spec, action, {
+      'user-id': operation.userId,
+    });
+    const actionResult = passwordActionResult(outputs);
+    if (actionResult.asynchronous) await new Promise((resolve) => setTimeout(resolve, 450));
+    const refresh = await refreshLockUserData(auth, operation, spec);
+    // Only remove the Xiaomi cloud metadata after the physical lock has
+    // acknowledged the native delete-user action, keeping app and web aligned.
+    await syncLockCloudUserDeletion(auth, operation, operation.userId);
+    return {
+      deleted: true,
+      asynchronous: actionResult.asynchronous,
       userDataRefreshRequested: refresh.requested,
     };
   }
