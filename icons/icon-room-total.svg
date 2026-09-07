@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+  <title>房间总数</title>
+  <path d="M5 21V4.75A1.75 1.75 0 0 1 6.75 3h10.5A1.75 1.75 0 0 1 19 4.75V21"/>
+  <path d="M3 21h18"/>
+  <path d="M9 21v-4h6v4"/>
+  <path d="M8 7h1M11.5 7h1M15 7h1M8 10.5h1M11.5 10.5h1M15 10.5h1M8 14h1M11.5 14h1M15 14h1"/>
+</svg>
