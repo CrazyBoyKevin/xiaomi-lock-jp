@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import Image from 'next/image';
 import type {
   DeviceSpec,
@@ -33,10 +33,12 @@ const LockIcon = ({ open = false }: { open?: boolean }) => <svg className="lock-
   <rect width="18" height="11" x="3" y="11" rx="2" />
   {open ? <path d="M7 11V7a5 5 0 0 1 9.9-1" /> : <path d="M7 11V7a5 5 0 0 1 10 0v4" />}
 </svg>;
-const UnconfiguredLockIcon = () => <svg className="unconfigured-lock-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-  <rect width="13" height="10" x="3" y="11" rx="2" />
-  <path d="M6.5 11V7.5a3 3 0 0 1 6 0V9" />
-  <path d="M19 7v6M16 10h6" />
+const HomeIcon = () => <svg className="home-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m3.5 10 8.5-7 8.5 7v10.5H15v-6h-6v6H3.5Z" /></svg>;
+const AlertIcon = () => <svg className="alert-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m12 3 9 16H3Z" /><path d="M12 9v4M12 17h.01" /></svg>;
+const OfflineIcon = () => <svg className="offline-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><path d="M4 9a12 12 0 0 1 16 0M7 12.5a7.6 7.6 0 0 1 10 0M10.2 16a3.1 3.1 0 0 1 3.6 0" /><path d="m4 4 16 16" /></svg>;
+const FilterIcon = () => <svg className="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 5h16l-6.2 7.1v5.3l-3.6 1.6v-6.9Z" /></svg>;
+const UnconfiguredLockIcon = () => <svg className="unconfigured-lock-icon" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+  <path d="M15.902 1C19.708 1 22.792 4.189 22.792 8.122V10.037H24.84C27.137 10.037 29 11.962 29 14.337V26.7C29 29.075 27.137 31 24.84 31H7.16C4.863 31 3 29.075 3 26.7V14.337C3 11.962 4.863 10.037 7.16 10.037H9.013V8.122C9.012 4.19 12.096 1 15.902 1ZM24.84 12.187H7.16C6.011 12.187 5.08 13.15 5.08 14.337V26.7C5.08 27.887 6.011 28.85 7.16 28.85H24.84C25.989 28.85 26.92 27.887 26.92 26.7V14.337C26.92 13.15 25.989 12.187 24.84 12.187ZM15.902 3.151C13.246 3.151 11.092 5.376 11.092 8.122V10.037H20.712V8.122C20.712 5.376 18.559 3.15 15.902 3.15V3.151Z" fill="rgb(51,51,51)" fillRule="nonzero" />
 </svg>;
 const PlusIcon = () => <svg className="plus-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
   <path d="M12 5v14M5 12h14" />
@@ -49,10 +51,13 @@ const HistoryIcon = () => <svg className="history-icon" viewBox="0 0 24 24" fill
   <path d="M3 3v5h5M12 7v5l3 2" />
 </svg>;
 const CalendarIcon = () => <svg className="calendar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 10h18" /></svg>;
-const WifiIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M3.5 9a13 13 0 0 1 17 0M6.5 12.5a8.4 8.4 0 0 1 11 0M9.7 16a3.5 3.5 0 0 1 4.6 0" /><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" /></svg>;
-const BluetoothIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m7 7 10 10-5 4V3l5 4L7 17" /></svg>;
+const WifiIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><path d="M3.5 9a13 13 0 0 1 17 0M6.5 12.5a8.4 8.4 0 0 1 11 0M9.7 16a3.5 3.5 0 0 1 4.6 0" /><circle cx="12" cy="19" r="1" fill="currentColor" stroke="none" /></svg>;
+const BluetoothIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m7 7 10 10-5 4V3l5 4L7 17" /></svg>;
 const DoorStatusIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17M4 21h16" /><circle cx="14.5" cy="12" r=".8" fill="currentColor" stroke="none" /></svg>;
-const KeypadStatusIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="3" /><path d="M9 7h.01M12 7h.01M15 7h.01M9 11h.01M12 11h.01M15 11h.01M9 15h.01M12 15h.01M15 15h.01M12 18h.01" /></svg>;
+const KeypadStatusIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="2.5" width="14" height="19" rx="3" /><path d="M9 7h.01M12 7h.01M15 7h.01M9 11h.01M12 11h.01M15 11h.01M9 15h.01M12 15h.01M15 15h.01M12 18h.01" /></svg>;
+const AutoLockStatusIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5.2 8.5A8 8 0 1 1 4.4 15M5.2 8.5V4.7M5.2 8.5H9" /><rect x="8.2" y="10.5" width="7.6" height="6.3" rx="1.5" /><path d="M10 10.5V9.2a2 2 0 0 1 4 0v1.3" /></svg>;
+const KeypadGridIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><circle cx="7" cy="7" r="1.5" /><circle cx="12" cy="7" r="1.5" /><circle cx="17" cy="7" r="1.5" /><circle cx="7" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="17" cy="12" r="1.5" /><circle cx="7" cy="17" r="1.5" /><circle cx="12" cy="17" r="1.5" /><circle cx="17" cy="17" r="1.5" /></svg>;
+const SearchIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.2" /><path d="m15.5 15.5 4 4" /></svg>;
 const batteryPercent = (value: string) => {
   const match = value.match(/(\d+(?:\.\d+)?)\s*%/);
   return match ? Math.min(100, Math.max(0, Number(match[1]))) : null;
@@ -67,7 +72,7 @@ const batteryLevel = (value: string) => {
 const BatteryStatusIcon = ({ value }: { value: string }) => {
   const percent = batteryPercent(value);
   const chargeWidth = percent === null || percent === 0 ? 0 : Math.max(.8, 13 * percent / 100);
-  return <svg className="battery-status-icon" data-level={batteryLevel(value)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+  return <svg className="battery-status-icon" data-level={batteryLevel(value)} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <rect x="3" y="6" width="17" height="12" rx="2" />
     <path d="M22 10v4" />
     <rect x="5" y="8.5" width={chargeWidth} height="7" rx="1" fill="currentColor" stroke="none" />
@@ -156,11 +161,14 @@ function CustomSelect<T extends string>({ value, options, onChange, ariaLabel, p
       event.preventDefault();
       setOpen(false);
       triggerRef.current?.focus();
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectOption(options[index]);
     } else if (event.key === 'Tab') setOpen(false);
   };
 
   return <div className={`custom-select ${className}${open ? ' is-open' : ''}`} ref={rootRef}>
-    <button ref={triggerRef} className="custom-select-trigger" type="button" aria-label={ariaLabel} aria-required={required || undefined} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => open ? setOpen(false) : openMenu()} onKeyDown={handleTriggerKeyDown}>
+    <button ref={triggerRef} className="custom-select-trigger" type="button" aria-label={ariaLabel} data-required={required || undefined} aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => open ? setOpen(false) : openMenu()} onKeyDown={handleTriggerKeyDown}>
       {leading}
       <span className={`custom-select-value${selectedOption ? '' : ' is-placeholder'}`}>{selectedOption?.label || placeholder}</span>
       <span className="custom-select-chevron" aria-hidden="true"><ChevronDownIcon /></span>
@@ -176,19 +184,108 @@ function CustomSelect<T extends string>({ value, options, onChange, ariaLabel, p
 const RequiredLabel = ({ children }: { children: ReactNode }) => <span className="required-field-label">{children}<i aria-hidden="true">*</i></span>;
 
 function DateTimeField({ label, value, onChange, ariaLabel }: { label: string; value: string; onChange: (value: string) => void; ariaLabel: string }) {
-  return <label className="formatted-datetime-label">
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const dayRefs = useRef(new Map<string, HTMLButtonElement>());
+  const dialogId = useId();
+  const now = () => new Date();
+  const parseValue = (nextValue: string) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(nextValue);
+    return match ? { date: new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])), hour: match[4], minute: match[5] } : null;
+  };
+  const initial = parseValue(value);
+  const [open, setOpen] = useState(false);
+  const [displayedDate, setDisplayedDate] = useState(() => new Date((initial?.date || now()).getFullYear(), (initial?.date || now()).getMonth(), 1));
+  const [draftDate, setDraftDate] = useState<Date>(() => initial?.date || now());
+  const [hour, setHour] = useState(initial?.hour || '00');
+  const [minute, setMinute] = useState(initial?.minute || '00');
+  const dateKey = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const sameDay = (first: Date, second: Date) => dateKey(first) === dateKey(second);
+  const moveDraftDate = (days: number) => {
+    const next = new Date(draftDate);
+    next.setDate(next.getDate() + days);
+    setDraftDate(next);
+    setDisplayedDate(new Date(next.getFullYear(), next.getMonth(), 1));
+    requestAnimationFrame(() => dayRefs.current.get(dateKey(next))?.focus());
+  };
+  const openPicker = () => {
+    const parsed = parseValue(value);
+    const selected = parsed?.date || now();
+    setDraftDate(selected);
+    setDisplayedDate(new Date(selected.getFullYear(), selected.getMonth(), 1));
+    setHour(parsed?.hour || '00');
+    setMinute(parsed?.minute || '00');
+    setOpen(true);
+  };
+  const closePicker = (returnFocus = false) => {
+    setOpen(false);
+    if (returnFocus) requestAnimationFrame(() => triggerRef.current?.focus());
+  };
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) closePicker();
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    const frame = requestAnimationFrame(() => dayRefs.current.get(dateKey(draftDate))?.focus());
+    return () => { document.removeEventListener('pointerdown', closeOnOutsideClick); cancelAnimationFrame(frame); };
+  }, [draftDate, open]);
+  const firstOfMonth = new Date(displayedDate.getFullYear(), displayedDate.getMonth(), 1);
+  const calendarStart = new Date(firstOfMonth);
+  calendarStart.setDate(1 - firstOfMonth.getDay());
+  const calendarDays = Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(calendarStart);
+    day.setDate(calendarStart.getDate() + index);
+    return day;
+  });
+  const hours = Array.from({ length: 24 }, (_, index) => String(index).padStart(2, '0'));
+  const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, '0'));
+  const submitValue = () => {
+    onChange(`${dateKey(draftDate)}T${hour}:${minute}`);
+    closePicker(true);
+  };
+  return <div className="formatted-datetime-label" ref={rootRef}>
     <RequiredLabel>{label}</RequiredLabel>
-    <div className="formatted-datetime-field">
+    <button ref={triggerRef} className="formatted-datetime-field" type="button" aria-label={`${ariaLabel}，必填`} aria-haspopup="dialog" aria-expanded={open} aria-controls={dialogId} onClick={() => open ? closePicker() : openPicker()} onKeyDown={(event) => { if (event.key === 'Escape' && open) { event.preventDefault(); closePicker(true); } }}>
       <strong className={value ? '' : 'is-placeholder'}>{value ? value.replace('T', ' ') : '请选择日期和时间'}</strong>
       <CalendarIcon />
-      <input className="datetime-picker-proxy" type="datetime-local" value={value} onClick={(event) => event.currentTarget.showPicker?.()} onChange={(event) => onChange(event.target.value)} aria-label={`${ariaLabel}，必填`} required />
-    </div>
-  </label>;
+    </button>
+    {open && <div className="date-time-picker-popover" id={dialogId} role="dialog" aria-label={`${label}选择器`} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); closePicker(true); } }}>
+      <div className="date-time-picker-calendar">
+        <div className="date-time-picker-header"><strong>{displayedDate.getFullYear()} 年 {String(displayedDate.getMonth() + 1).padStart(2, '0')} 月</strong><div><button type="button" aria-label="上个月" onClick={() => setDisplayedDate((date) => new Date(date.getFullYear(), date.getMonth() - 1, 1))}>‹</button><button type="button" aria-label="下个月" onClick={() => setDisplayedDate((date) => new Date(date.getFullYear(), date.getMonth() + 1, 1))}>›</button></div></div>
+        <div className="date-time-picker-weekdays" aria-hidden="true">{['日', '一', '二', '三', '四', '五', '六'].map((day) => <span key={day}>{day}</span>)}</div>
+        <div className="date-time-picker-days" role="grid" aria-label="选择日期">{calendarDays.map((day) => {
+          const currentMonth = day.getMonth() === displayedDate.getMonth();
+          const selected = sameDay(day, draftDate);
+          const today = sameDay(day, now());
+          return <button ref={(node) => { if (node) dayRefs.current.set(dateKey(day), node); else dayRefs.current.delete(dateKey(day)); }} type="button" role="gridcell" aria-selected={selected} tabIndex={selected ? 0 : -1} className={`${currentMonth ? '' : 'outside-month'}${selected ? ' selected' : ''}${today ? ' today' : ''}`} key={dateKey(day)} onClick={() => { setDraftDate(day); setDisplayedDate(new Date(day.getFullYear(), day.getMonth(), 1)); }} onKeyDown={(event) => { const keyToDays: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }; if (keyToDays[event.key]) { event.preventDefault(); moveDraftDate(keyToDays[event.key]); } else if (event.key === 'Home') { event.preventDefault(); moveDraftDate(-draftDate.getDay()); } else if (event.key === 'End') { event.preventDefault(); moveDraftDate(6 - draftDate.getDay()); } else if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setDraftDate(day); } }}>{day.getDate()}</button>;
+        })}</div>
+        <div className="date-time-picker-footer"><button type="button" onClick={() => { onChange(''); closePicker(true); }}>清除</button><button type="button" onClick={() => { const today = now(); setDraftDate(today); setDisplayedDate(new Date(today.getFullYear(), today.getMonth(), 1)); }}>今天</button></div>
+      </div>
+      <div className="date-time-picker-time"><span>时间</span><div className="date-time-picker-time-selects"><CustomSelect className="date-time-select" value={hour} options={hours.map((item) => ({ value: item, label: item }))} ariaLabel="小时" onChange={setHour} /><i>:</i><CustomSelect className="date-time-select" value={minute} options={minutes.map((item) => ({ value: item, label: item }))} ariaLabel="分钟" onChange={setMinute} /></div><button className="date-time-picker-confirm" type="button" onClick={submitValue}>确定</button></div>
+    </div>}
+  </div>;
 }
 type RoomGroup = { key: string; homeId: string; homeName: string; roomId: string; roomName: string; devices: XiaomiDevice[] };
 type Building = { id: string; name: string; rooms: RoomGroup[] };
 type HomeCatalog = XiaomiInventory['homes'];
 type RoomSnapshot = { lockState: string; battery: string; keypadBattery: string; doorState: string; wifiStatus: string; bluetoothStatus: string; keypadState: string; updatedAt: number; error?: string };
+type RoomActivity = { lastUnlockAt: number | null; lastOnlineAt: number | null };
+type RoomFilter = 'all' | 'abnormal' | 'unlocked' | 'offline';
+type OverviewRoomState = 'locked' | 'unlocked' | 'abnormal' | 'offline' | 'unconfigured' | 'unknown';
+type OverviewRoom = {
+  state: OverviewRoomState;
+  lockStatus: 'locked' | 'unlocked' | 'unknown';
+  locks: XiaomiDevice[];
+  roomKeypadCount: number;
+  relevantDeviceCount: number;
+  activeLock?: XiaomiDevice;
+  activeSnapshot?: RoomSnapshot;
+  deviceName: string;
+  exceptionText: string;
+  lastUnlockAt: number | null;
+  lastOnlineAt: number | null;
+};
 type PropertyReadResult = { siid: number; piid: number; value?: unknown; code?: number };
 type ConsoleRoute = { region: XiaomiRegion; homeId?: string; roomId?: string; lockDid?: string };
 
@@ -226,6 +323,30 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const body = await response.json() as T & { error?: string };
   if (!response.ok) throw new Error(body.error || `请求失败（${response.status}）`);
   return body;
+}
+
+function timestampValue(value: unknown) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+}
+
+function lastOnlineTimestamp(device: XiaomiDevice | undefined) {
+  if (!device) return null;
+  for (const key of ['last_online', 'last_online_time', 'lastOnline', 'lastOnlineTime', 'last_online_at', 'lastOnlineAt']) {
+    const timestamp = timestampValue(device[key]);
+    if (timestamp) return timestamp;
+  }
+  return null;
+}
+
+function displayRoomActivityTime(timestamp: number | null) {
+  if (!timestamp) return '暂无记录';
+  const date = new Date(timestamp);
+  const today = new Date();
+  const time = date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+  if (date.toDateString() === today.toDateString()) return `今天 ${time}`;
+  return `${date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })} ${time}`;
 }
 
 function propertyLabel(property: SpecProperty) {
@@ -396,6 +517,7 @@ export default function LockConsole() {
   const [selectedRoomKey, setSelectedRoomKey] = useState('all');
   const [selectedLockDid, setSelectedLockDid] = useState('');
   const [roomQuery, setRoomQuery] = useState('');
+  const [roomFilter, setRoomFilter] = useState<RoomFilter>('all');
   const [spec, setSpec] = useState<DeviceSpec | null>(null);
   const [values, setValues] = useState<Record<string, unknown>>({});
   const [readFailures, setReadFailures] = useState<Record<string, string>>({});
@@ -421,9 +543,8 @@ export default function LockConsole() {
   const [managedPasswords, setManagedPasswords] = useState<XiaomiLockCloudPassword[]>([]);
   const [managedPasswordUsers, setManagedPasswordUsers] = useState<XiaomiLockCloudUser[]>([]);
   const [oneTimePasswords, setOneTimePasswords] = useState<XiaomiLockOneTimePassword[]>([]);
-  const [passwordSection, setPasswordSection] = useState<'permanent' | 'temporary'>('temporary');
+  const [passwordSection, setPasswordSection] = useState<'permanent' | 'temporary'>('permanent');
   const [passwordSyncing, setPasswordSyncing] = useState(false);
-  const [passwordSyncedAt, setPasswordSyncedAt] = useState<number | null>(null);
   const [deletePasswordTarget, setDeletePasswordTarget] = useState<XiaomiLockCloudPassword | null>(null);
   const [deleteUserTarget, setDeleteUserTarget] = useState<XiaomiLockCloudUser | null>(null);
   const [temporaryEditorOpen, setTemporaryEditorOpen] = useState(false);
@@ -445,9 +566,12 @@ export default function LockConsole() {
   const [operationLogsLoading, setOperationLogsLoading] = useState(false);
   const [operationLogsError, setOperationLogsError] = useState('');
   const [operationLogsSyncedAt, setOperationLogsSyncedAt] = useState<number | null>(null);
+  const [holdingUnlock, setHoldingUnlock] = useState(false);
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const loadedOverviewKeys = useRef(new Set<string>());
+  const loadedRoomActivityDids = useRef(new Set<string>());
+  const [roomActivities, setRoomActivities] = useState<Record<string, RoomActivity>>({});
   const passwordSyncRequest = useRef(0);
   const regionName = region === 'CN' ? '中国' : '日本';
 
@@ -460,7 +584,57 @@ export default function LockConsole() {
   const selected = currentRoomLocks.find((lock) => lock.did === selectedLockDid);
   const selectedDid = selected?.did;
   const selectedModel = selected?.model;
-  const filteredRooms = currentBuilding?.rooms.filter((room) => room.roomName.toLowerCase().includes(roomQuery.toLowerCase())) ?? [];
+  const roomOverview = useMemo(() => new Map((currentBuilding?.rooms ?? []).map((room): [string, OverviewRoom] => {
+    const locks = roomLocks(room);
+    const externalKeypads = roomKeypads(room);
+    const integratedKeypads = locks.filter((lock) => !roomKeypad(room, lock) && hasIntegratedKeypad(roomSnapshots[lock.did])).length;
+    const roomKeypadCount = externalKeypads.length + integratedKeypads;
+    const relevantDeviceCount = locks.length + roomKeypadCount;
+    const onlineLocks = locks.filter((lock) => lock.online !== false).length;
+    const activeLock = locks.find((lock) => lock.online !== false) || locks[0];
+    const activeSnapshot = activeLock ? roomSnapshots[activeLock.did] : undefined;
+    const activity = activeLock ? roomActivities[activeLock.did] : undefined;
+    const activeLockState = activeSnapshot?.lockState || '';
+    const lockBattery = activeSnapshot?.battery || '';
+    const keypadBattery = activeSnapshot?.keypadBattery || '';
+    const lowLockBattery = batteryPercent(lockBattery);
+    const lowKeypadBattery = batteryPercent(keypadBattery);
+    const isOffline = locks.length > 0 && onlineLocks === 0;
+    const isUnlocked = !isOffline && /unlock|解锁|开锁|未锁/i.test(activeLockState);
+    const isLocked = !isOffline && !isUnlocked && /上锁|锁定|锁舌已伸出|locked/i.test(activeLockState);
+    const exceptionReasons = [
+      lowLockBattery !== null && lowLockBattery <= 25 ? `门锁电量低 ${lockBattery}` : '',
+      lowKeypadBattery !== null && lowKeypadBattery <= 25 ? `键盘电量低 ${keypadBattery}` : '',
+      /异常|失败/.test(activeLockState) ? '门锁状态异常' : '',
+      /异常|拆卸/.test(activeSnapshot?.keypadState || '') ? '键盘状态异常' : '',
+      activeSnapshot?.error ? '门锁状态读取失败' : '',
+    ].filter(Boolean);
+    const lockStatus = isUnlocked ? 'unlocked' : isLocked ? 'locked' : 'unknown';
+    const state: OverviewRoomState = !locks.length ? 'unconfigured' : isOffline ? 'offline' : exceptionReasons.length ? 'abnormal' : lockStatus;
+    return [room.key, {
+      state,
+      lockStatus,
+      locks,
+      roomKeypadCount,
+      relevantDeviceCount,
+      activeLock,
+      activeSnapshot,
+      deviceName: activeLock?.name || '智能门锁',
+      exceptionText: exceptionReasons.length ? `状态异常：${exceptionReasons.join(' · ')}` : '',
+      lastUnlockAt: activity?.lastUnlockAt ?? null,
+      lastOnlineAt: activity?.lastOnlineAt ?? lastOnlineTimestamp(activeLock),
+    }];
+  })), [currentBuilding, roomActivities, roomSnapshots]);
+  const filteredRooms = (currentBuilding?.rooms ?? []).filter((room) => {
+    const overview = roomOverview.get(room.key);
+    const matchesQuery = room.roomName.toLowerCase().includes(roomQuery.toLowerCase());
+    const matchesFilter = roomFilter === 'all'
+      || (roomFilter === 'unlocked' ? overview?.lockStatus === 'unlocked' : overview?.state === roomFilter);
+    return matchesQuery && matchesFilter;
+  });
+  const unlockedRoomCount = [...roomOverview.values()].filter((room) => room.lockStatus === 'unlocked').length;
+  const abnormalRoomCount = [...roomOverview.values()].filter((room) => room.state === 'abnormal').length;
+  const offlineRoomCount = [...roomOverview.values()].filter((room) => room.state === 'offline').length;
   const passwordUsers = managedPasswordUsers;
   const passwordUserNames = useMemo(
     () => new Map(managedPasswordUsers.map((user) => [user.userId, user.name])),
@@ -498,10 +672,13 @@ export default function LockConsole() {
     const building = sourceBuildings.find((entry) => entry.id === route.homeId) ?? sourceBuildings[0];
     const room = route.roomId ? building?.rooms.find((entry) => entry.roomId === route.roomId) : undefined;
     const locks = roomLocks(room);
-    const lock = route.lockDid ? locks.find((entry) => entry.did === route.lockDid) : undefined;
+    const lock = route.lockDid
+      ? locks.find((entry) => entry.did === route.lockDid)
+      : locks.length === 1 ? locks[0] : undefined;
     setSelectedHomeId(building?.id || '');
     setSelectedRoomKey(room?.key || 'all');
     setSelectedLockDid(lock?.did || '');
+    if (lock) setPasswordSection('permanent');
     return { building, room, lock };
   }, []);
 
@@ -554,7 +731,6 @@ export default function LockConsole() {
         setManagedPasswords(result.entries);
         setManagedPasswordUsers(result.users);
         setOneTimePasswords(result.oneTimePasswords ?? []);
-        setPasswordSyncedAt(result.syncedAt);
       }
       return result;
     } catch (cause) {
@@ -563,7 +739,6 @@ export default function LockConsole() {
         setManagedPasswords([]);
         setManagedPasswordUsers([]);
         setOneTimePasswords([]);
-        setPasswordSyncedAt(null);
         setPasswordError(reason);
       }
       throw cause;
@@ -589,6 +764,26 @@ export default function LockConsole() {
     } finally {
       setOperationLogsLoading(false);
     }
+  }, [rpc]);
+
+  const loadOverviewActivities = useCallback(async (rooms: RoomGroup[]) => {
+    const targets = rooms.flatMap(roomLocks).filter((lock) => lock.online !== false && !loadedRoomActivityDids.current.has(lock.did));
+    if (!targets.length) return;
+    targets.forEach((lock) => loadedRoomActivityDids.current.add(lock.did));
+    let nextIndex = 0;
+    const worker = async () => {
+      while (nextIndex < targets.length) {
+        const lock = targets[nextIndex++];
+        try {
+          const result = await rpc<XiaomiLockOperationLogList>({ op: 'operationLogs', did: lock.did, model: lock.model });
+          const lastUnlock = result.entries.find((entry) => entry.action === 'unlock' && entry.success !== false);
+          setRoomActivities((current) => ({ ...current, [lock.did]: { lastUnlockAt: lastUnlock?.time ?? null, lastOnlineAt: lastOnlineTimestamp(lock) } }));
+        } catch {
+          setRoomActivities((current) => ({ ...current, [lock.did]: { lastUnlockAt: null, lastOnlineAt: lastOnlineTimestamp(lock) } }));
+        }
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(2, targets.length) }, () => worker()));
   }, [rpc]);
 
   const readLockSnapshot = useCallback(async (lock: XiaomiDevice): Promise<RoomSnapshot> => {
@@ -792,8 +987,8 @@ export default function LockConsole() {
     if (!auth || !currentBuilding || !currentBuildingStatusKey || loadedOverviewKeys.current.has(currentBuildingStatusKey)) return;
     loadedOverviewKeys.current.add(currentBuildingStatusKey);
     const rooms = currentBuilding.rooms;
-    queueMicrotask(() => void loadOverviewSnapshots(rooms));
-  }, [auth, currentBuilding, currentBuildingStatusKey, loadOverviewSnapshots]);
+    queueMicrotask(() => { void loadOverviewSnapshots(rooms); void loadOverviewActivities(rooms); });
+  }, [auth, currentBuilding, currentBuildingStatusKey, loadOverviewActivities, loadOverviewSnapshots]);
   useEffect(() => { queueMicrotask(() => void loadSelected()); }, [selected?.did]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (selectedLockDid && currentRoom && !currentRoomLocks.some((lock) => lock.did === selectedLockDid)) {
@@ -806,7 +1001,6 @@ export default function LockConsole() {
       setManagedPasswords([]);
       setManagedPasswordUsers([]);
       setOneTimePasswords([]);
-      setPasswordSyncedAt(null);
       setPasswordPin('');
       setPasswordError('');
       setDeletePasswordTarget(null);
@@ -815,7 +1009,7 @@ export default function LockConsole() {
       setTemporaryEditorTarget(null);
       setTemporaryReceipt(null);
       setDeleteTemporaryTarget(null);
-      setPasswordSection('temporary');
+      setPasswordSection('permanent');
       setExpandedPasswordUserId(undefined);
       if (auth && selectedDid && selectedModel) void loadCloudPasswords(selectedDid, selectedModel).catch(() => undefined);
     });
@@ -872,7 +1066,7 @@ export default function LockConsole() {
     void beginLogin();
   };
   const logout = () => {
-    localStorage.removeItem(AUTH_KEY); loadedOverviewKeys.current.clear(); setAccountMenuOpen(false); setLogoutConfirmOpen(false); setOperationLogsOpen(false); setOperationLogs([]); setAuth(null); setDevices([]); setHomeCatalog([]); setSpec(null); setValues({}); setRoomSnapshots({}); setSnapshotLoading({}); setSelectedHomeId(''); setSelectedRoomKey('all'); setSelectedLockDid(''); setError(''); setMessage(''); setLoginOpen(true); setQr(null); setQrState('');
+    localStorage.removeItem(AUTH_KEY); loadedOverviewKeys.current.clear(); loadedRoomActivityDids.current.clear(); setRoomActivities({}); setAccountMenuOpen(false); setLogoutConfirmOpen(false); setOperationLogsOpen(false); setOperationLogs([]); setAuth(null); setDevices([]); setHomeCatalog([]); setSpec(null); setValues({}); setRoomSnapshots({}); setSnapshotLoading({}); setSelectedHomeId(''); setSelectedRoomKey('all'); setSelectedLockDid(''); setError(''); setMessage(''); setLoginOpen(true); setQr(null); setQrState('');
   };
 
   const switchRegion = (nextRegion: XiaomiRegion) => {
@@ -882,7 +1076,7 @@ export default function LockConsole() {
     setRegion(nextRegion);
     setQr(null); setQrState(''); setError('');
     setOperationLogsOpen(false); setOperationLogs([]); setOperationLogsError(''); setOperationLogsSyncedAt(null);
-    loadedOverviewKeys.current.clear();
+    loadedOverviewKeys.current.clear(); loadedRoomActivityDids.current.clear(); setRoomActivities({});
     setDevices([]); setHomeCatalog([]); setSpec(null); setValues({}); setReadFailures({});
     setRoomSnapshots({}); setSnapshotLoading({}); setSelectedHomeId(''); setSelectedRoomKey('all'); setSelectedLockDid('');
     if (auth) {
@@ -985,13 +1179,21 @@ export default function LockConsole() {
   };
 
   const selectRoom = (room: RoomGroup) => {
+    const locks = roomLocks(room);
     setSelectedRoomKey(room.key);
+    if (locks.length === 1) {
+      setPasswordSection('permanent');
+      setSelectedLockDid(locks[0].did);
+      updateBrowserPath(consolePath(region, room.homeId, room.roomId, locks[0].did));
+      return;
+    }
     setSelectedLockDid('');
     updateBrowserPath(consolePath(region, room.homeId, room.roomId));
   };
 
   const selectLock = (room: RoomGroup, lock: XiaomiDevice) => {
     setSelectedRoomKey(room.key);
+    setPasswordSection('permanent');
     setSelectedLockDid(lock.did);
     updateBrowserPath(consolePath(region, room.homeId, room.roomId, lock.did));
   };
@@ -1002,7 +1204,7 @@ export default function LockConsole() {
       setPasswordManagerOpen(false); setDeletePasswordTarget(null); setDeleteUserTarget(null); setTemporaryEditorOpen(false); setTemporaryEditorTarget(null); setTemporaryReceipt(null); setDeleteTemporaryTarget(null); setConfirmAction(null); setOperationLogsOpen(false);
       if (route.region !== region) {
         setRegion(route.region);
-        loadedOverviewKeys.current.clear();
+        loadedOverviewKeys.current.clear(); loadedRoomActivityDids.current.clear(); setRoomActivities({});
         setDevices([]); setHomeCatalog([]); setSpec(null); setValues({}); setReadFailures({});
         setRoomSnapshots({}); setSnapshotLoading({}); setSelectedHomeId(''); setSelectedRoomKey('all'); setSelectedLockDid('');
         if (auth) {
@@ -1026,7 +1228,6 @@ export default function LockConsole() {
   const temporaryPasswordAction = spec?.actions.find((action) => action.name === 'edit-periodic-cipher');
   const temporaryPasswordManagementSupported = Boolean(temporaryPasswordAction);
   const lockStateProp = getProp(spec, /lock-state|door-lock-state/i);
-  const doorStateProp = getProp(spec, /^door-state$|contact-state/i);
   const batteryProp = getProp(spec, /battery-level|^lock-mah$|battery-percent|electric-power/i);
   const keypadBatteryProp = getProp(spec, /^keypad-mah$/i);
   const wifiStatusProp = getProp(spec, /^wifi-status$/i);
@@ -1046,7 +1247,6 @@ export default function LockConsole() {
   };
 
   const lockStatus = propertyStatus(lockStateProp);
-  const doorStatus = propertyStatus(doorStateProp);
   const lockBatteryStatus = propertyStatus(batteryProp);
   const keypadBatteryStatus = propertyStatus(keypadBatteryProp);
   const wifiStatus = propertyStatus(wifiStatusProp, '已连接', '未连接');
@@ -1061,29 +1261,36 @@ export default function LockConsole() {
   const autoLockReason = closeDoorStatus.reason || unlockAutoStatus.reason;
   const lockState = lockStateProp ? lockStatus.value : selected ? '无状态属性' : '—';
   const statusItems = [
-    { key: 'lock', property: lockStateProp, icon: '▣', label: '门锁状态', value: lockStatus.value, reason: lockStatus.reason },
-    { key: 'door', property: doorStateProp, icon: '▯', label: '门状态', value: doorStatus.value, reason: doorStatus.reason },
-    { key: 'wifi', property: wifiStatusProp, icon: 'Wi', label: 'Wi-Fi 状态', value: wifiStatus.value, reason: wifiStatus.reason },
-    { key: 'ble', property: bleStateProp, icon: 'B', label: '键盘蓝牙', value: `${bleStatus.value}${bleSignalStatus.value !== '不支持' && bleSignalStatus.value !== '—' ? ` · ${bleSignalStatus.value}` : ''}`, reason: bleStatus.reason || bleSignalStatus.reason },
-    { key: 'lock-battery', property: batteryProp, icon: '🔋', label: '门锁电量', value: lockBatteryStatus.value, reason: lockBatteryStatus.reason },
-    { key: 'keypad-battery', property: keypadBatteryProp, icon: '🔋', label: '键盘电量', value: keypadBatteryStatus.value, reason: keypadBatteryStatus.reason },
-    { key: 'keypad', property: keypadStateProp, icon: '⌨️', label: '键盘状态', value: keypadStatus.value, reason: keypadStatus.reason },
-    { key: 'auto-lock', property: closeDoorLockProp ?? unlockAutoLockProp, icon: '↻', label: '自动上锁', value: autoLockValue, reason: autoLockReason },
-  ].filter((item) => item.property);
+    { key: 'wifi', icon: <WifiIcon />, label: 'Wi-Fi', value: wifiStatus.value, reason: wifiStatus.reason },
+    { key: 'ble', icon: <BluetoothIcon />, label: '蓝牙', value: bleStatus.value, reason: bleStatus.reason || bleSignalStatus.reason },
+    { key: 'lock-battery', icon: <BatteryStatusIcon value={lockBatteryStatus.value} />, label: '门锁电量', value: lockBatteryStatus.value, reason: lockBatteryStatus.reason },
+    { key: 'keypad-battery', icon: <BatteryStatusIcon value={keypadBatteryStatus.value} />, label: '键盘电量', value: keypadBatteryStatus.value, reason: keypadBatteryStatus.reason },
+    { key: 'keypad', icon: <KeypadStatusIcon />, label: '键盘', value: /正常/.test(keypadStatus.value) ? '正常' : keypadStatus.value, reason: keypadStatus.reason },
+    { key: 'auto-lock', icon: <AutoLockStatusIcon />, label: '自动上锁', value: autoLockValue, reason: autoLockReason },
+  ];
   const isUnlocked = /unlock|开|解锁/i.test(lockState);
+  const isStateUnavailable = selected?.online === false || !lockStateProp || /^(—|不支持|读取失败|无状态属性)$/.test(lockState) || /离线|异常|未知/.test(lockState);
+  const lockControlMode = loading ? 'loading' : isStateUnavailable ? 'unknown' : isUnlocked ? 'unlocked' : 'locked';
+  const controlAction = lockControlMode === 'unlocked' ? lockAction : unlockAction;
+  const statusLabel = lockControlMode === 'loading' ? '操作中' : lockControlMode === 'unknown' ? '状态未知' : lockControlMode === 'unlocked' ? '已解锁' : '已上锁';
+  const controlLabel = lockControlMode === 'loading' ? '正在处理…' : lockControlMode === 'unknown' ? '暂不可操作' : lockControlMode === 'unlocked' ? lockAction ? '上锁' : '不可上锁' : unlockAction ? holdingUnlock ? '继续按住…' : '长按解锁' : '不可解锁';
+  const controlHint = lockControlMode === 'loading' ? '请等待状态同步' : lockControlMode === 'unknown' ? selected?.online === false ? '设备离线，请检查连接' : '请刷新后重试' : lockControlMode === 'unlocked' ? lockAction ? '点击后确认' : '设备未公开动作' : unlockAction ? '按住约 2 秒' : '设备未公开动作';
+  const controlDisabled = !auth || loading || !selected || !controlAction || lockControlMode === 'unknown';
   const startHold = () => {
     if (!unlockAction) { setError('该设备规格未公开远程解锁动作。'); return; }
-    holdTimer.current = setTimeout(() => openActionConfirm(unlockAction), 1600);
+    if (holdTimer.current) return;
+    setHoldingUnlock(true);
+    holdTimer.current = setTimeout(() => {
+      holdTimer.current = null;
+      setHoldingUnlock(false);
+      void runAction(unlockAction);
+    }, 2000);
   };
-  const cancelHold = () => { if (holdTimer.current) clearTimeout(holdTimer.current); holdTimer.current = null; };
-  const buildingLocks = currentBuilding?.rooms.flatMap(roomLocks) ?? [];
-  const onlineLockCount = buildingLocks.filter((lock) => lock.online !== false).length;
-  const keypadCount = currentBuilding?.rooms.reduce((sum, room) => {
-    const externalKeypads = roomKeypads(room);
-    const integratedKeypads = roomLocks(room).filter((lock) => !roomKeypad(room, lock) && hasIntegratedKeypad(roomSnapshots[lock.did])).length;
-    return sum + externalKeypads.length + integratedKeypads;
-  }, 0) ?? 0;
-
+  const cancelHold = () => {
+    if (holdTimer.current) clearTimeout(holdTimer.current);
+    holdTimer.current = null;
+    setHoldingUnlock(false);
+  };
   const openPasswordManager = () => {
     if (!passwordManagementSupported) {
       setError('当前门锁没有公开用户永久密码管理能力。');
@@ -1335,7 +1542,7 @@ export default function LockConsole() {
   const notificationMessage = notificationError ? '' : message;
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell${selectedRoomKey === 'all' ? ' building-shell' : selected ? ' lock-detail-shell' : ''}`}>
       <aside className="sidebar apartment-sidebar">
         <div className="brand"><span className="brand-mark">M</span><span>Mi Apartments</span></div>
         <div className="building-picker">
@@ -1344,13 +1551,14 @@ export default function LockConsole() {
         </div>
         <nav className="device-nav room-nav" aria-label="房间">
           <div className="room-nav-head"><p className="nav-label">房间</p><span>{currentBuilding?.rooms.length || 0}</span></div>
-          <button className={`room-item overview ${selectedRoomKey === 'all' ? 'active' : ''}`} onClick={selectBuildingOverview}><span className="room-number">⌂</span><span><strong>所有房间</strong><small>查看整栋状态</small></span></button>
+          <button className={`room-item overview ${selectedRoomKey === 'all' ? 'active' : ''}`} onClick={selectBuildingOverview}><span className="room-overview-icon"><HomeIcon /></span><span><strong>所有房间</strong><small>查看房间列表与整体设备状态</small></span></button>
           <div className="room-list">
+            <p className="room-list-label">房间列表</p>
             {currentBuilding?.rooms.map((room) => {
               const locks = roomLocks(room); const externalKeypads = roomKeypads(room); const integratedKeypads = locks.filter((lock) => !roomKeypad(room, lock) && hasIntegratedKeypad(roomSnapshots[lock.did])).length; const roomKeypadCount = externalKeypads.length + integratedKeypads; const relevantDeviceCount = locks.length + roomKeypadCount; const onlineDevices = [...locks, ...externalKeypads].filter((entry) => entry.online !== false).length;
+              const overview = roomOverview.get(room.key);
               return <button key={room.key} className={`room-item ${!relevantDeviceCount ? 'unavailable' : ''} ${selectedRoomKey === room.key ? 'active' : ''}`} onClick={() => relevantDeviceCount && selectRoom(room)} disabled={!relevantDeviceCount} title={!relevantDeviceCount ? '未配置门锁或密码键盘' : `管理 ${locks.length} 把门锁和 ${roomKeypadCount} 个键盘`}>
-                <span className="room-number">{room.roomName.match(/\d+/)?.[0] || room.roomName.slice(0, 2)}</span>
-                <span><strong>{room.roomName}</strong></span>
+                <span className="room-item-name"><strong>{room.roomName}{overview?.state === 'abnormal' && <span className="room-item-warning-icon" aria-label="存在异常"><AlertIcon /></span>}</strong></span>
                 <i className={`status-dot ${relevantDeviceCount ? onlineDevices ? '' : 'offline' : 'neutral'}`} />
               </button>;
             })}
@@ -1364,36 +1572,71 @@ export default function LockConsole() {
           <div className="page-heading">
             {currentRoom ? <nav className="breadcrumbs" aria-label="当前位置">
               <button type="button" onClick={selectBuildingOverview}>{currentBuilding?.name || `${regionName}区公寓`}</button>
-              {selected && <><span aria-hidden="true">›</span><button type="button" onClick={() => selectRoom(currentRoom)}>{currentRoom.roomName}</button></>}
+              <><span aria-hidden="true">›</span><button type="button" onClick={() => selectRoom(currentRoom)}>{currentRoom.roomName}</button></>
             </nav> : <p className="eyebrow">{regionName}区 · 公寓管理</p>}
             <h1>{currentRoom ? selected ? selected.name : currentRoom.roomName : currentBuilding?.name || `连接你的${regionName}区米家账号`}</h1>
           </div>
-          <div className="top-actions"><CustomSelect className="region-custom-select" value={region} options={[{ value: 'JP', label: '日本' }, { value: 'CN', label: '中国' }]} ariaLabel={`当前区域：${regionName}`} leading={<span className="region-code">{region}</span>} onChange={(nextRegion) => switchRegion(nextRegion as XiaomiRegion)} /><button className="icon-button" aria-label="刷新" onClick={refreshCurrentView} disabled={loading}>↻</button><div className="account-control" ref={accountMenuRef}><button className="avatar" onClick={() => auth ? setAccountMenuOpen((open) => !open) : setLoginOpen(true)} aria-label={auth ? '账户菜单' : '登录'} aria-haspopup={auth ? 'menu' : undefined} aria-expanded={auth ? accountMenuOpen : undefined}>{auth ? 'K' : '?'}</button>{auth && accountMenuOpen && <div className="account-menu" role="menu"><div className="account-menu-head"><span>K</span><p><strong>小米账号</strong><small>{auth.userId} · {regionName}区</small></p></div><button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setLogoutConfirmOpen(true); }}><span>退出登录</span><i>›</i></button></div>}</div></div>
+          <div className="top-actions"><CustomSelect className="region-custom-select" value={region} options={[{ value: 'JP', label: '日本' }, { value: 'CN', label: '中国' }]} ariaLabel={`当前区域：${regionName}`} leading={selectedRoomKey === 'all' ? undefined : <span className="region-code">{region}</span>} onChange={(nextRegion) => switchRegion(nextRegion as XiaomiRegion)} /><button className="icon-button" aria-label="刷新" onClick={refreshCurrentView} disabled={loading}>↻</button><div className="account-control" ref={accountMenuRef}><button className="avatar" onClick={() => auth ? setAccountMenuOpen((open) => !open) : setLoginOpen(true)} aria-label={auth ? '账户菜单' : '登录'} aria-haspopup={auth ? 'menu' : undefined} aria-expanded={auth ? accountMenuOpen : undefined}>{auth ? 'K' : '?'}</button>{auth && accountMenuOpen && <div className="account-menu" role="menu"><div className="account-menu-head"><span>K</span><p><strong>小米账号</strong><small>{auth.userId} · {regionName}区</small></p></div><button type="button" role="menuitem" onClick={() => { setAccountMenuOpen(false); setLogoutConfirmOpen(true); }}><span>退出登录</span><i>›</i></button></div>}</div></div>
         </header>
         {(notificationError || notificationMessage) && <aside className="notification-region" aria-live="polite"><div className={`notice ${notificationError ? 'error' : 'success'}`} role={notificationError ? 'alert' : 'status'}><span>{notificationError ? '!' : '✓'}</span><div><strong>{notificationError ? '操作未完成' : '操作完成'}</strong><p>{notificationError || notificationMessage}</p></div><button onClick={() => { setError(''); setPasswordError(''); setConfirmError(''); setMessage(''); }} aria-label="关闭通知">×</button></div></aside>}
 
         {selectedRoomKey === 'all' ? <section className="building-overview">
           <div className="overview-stats">
-            <div><span className="summary-icon">▦</span><p><small>房间总数</small><strong>{currentBuilding?.rooms.length || 0}</strong></p></div>
-            <div><span className="summary-icon live">●</span><p><small>在线门锁</small><strong>{onlineLockCount}</strong></p></div>
-            <div><span className="summary-icon keypad">⌨️</span><p><small>密码键盘</small><strong>{keypadCount}</strong></p></div>
+            <div className="overview-stat total"><span className="summary-icon"><HomeIcon /></span><p><small>房间总数</small><strong>{currentBuilding?.rooms.length || 0}</strong></p></div>
+            <div className="overview-stat unlocked"><span className="summary-icon"><LockIcon open /></span><p><small>已解锁房间</small><strong>{unlockedRoomCount}</strong></p></div>
+            <div className="overview-stat abnormal"><span className="summary-icon"><AlertIcon /></span><p><small>异常房间</small><strong>{abnormalRoomCount}</strong></p></div>
+            <div className="overview-stat offline"><span className="summary-icon"><OfflineIcon /></span><p><small>离线房间</small><strong>{offlineRoomCount}</strong></p></div>
           </div>
           <div className="rooms-panel">
-            <div className="rooms-toolbar"><h2>房间列表</h2><label className="room-search"><span>⌕</span><input value={roomQuery} onChange={(event) => setRoomQuery(event.target.value)} placeholder="搜索房间号" /></label></div>
+            <div className="rooms-toolbar">
+              <h2>房间列表</h2>
+              <div className="rooms-toolbar-controls">
+                <label className="room-search"><span><SearchIcon /></span><input value={roomQuery} onChange={(event) => setRoomQuery(event.target.value)} placeholder="搜索房间号" /></label>
+                <CustomSelect className="room-filter-select" value={roomFilter} options={[{ value: 'all', label: '全部房间' }, { value: 'abnormal', label: '异常房间' }, { value: 'unlocked', label: '已解锁房间' }, { value: 'offline', label: '离线房间' }]} ariaLabel="筛选房间" leading={<FilterIcon />} onChange={setRoomFilter} />
+              </div>
+            </div>
             <div className="room-grid">
-              {filteredRooms.map((room) => { const locks = roomLocks(room); const externalKeypads = roomKeypads(room); const integratedKeypads = locks.filter((lock) => !roomKeypad(room, lock) && hasIntegratedKeypad(roomSnapshots[lock.did])).length; const roomKeypadCount = externalKeypads.length + integratedKeypads; const onlineLocks = locks.filter((entry) => entry.online !== false).length; const onlineKeypads = externalKeypads.filter((entry) => entry.online !== false).length + locks.filter((lock) => !roomKeypad(room, lock) && hasIntegratedKeypad(roomSnapshots[lock.did]) && lock.online !== false).length; const relevantDeviceCount = locks.length + roomKeypadCount; return <article className="room-card operational room-summary-card" key={room.key}>
-                <div className="room-card-head">
-                  <span className={`room-door ${locks.length ? 'multi' : externalKeypads.length ? 'keypad-only' : 'generic-device'}`} role="img" aria-label={locks.length ? `${locks.length} 把门锁` : externalKeypads.length ? `${externalKeypads.length} 个密码键盘` : '未配置门锁设备'}>{locks.length ? <LockIcon /> : externalKeypads.length ? <span className="keypad-emoji" aria-hidden="true">⌨️</span> : <UnconfiguredLockIcon />}</span>
-                  <div className="room-card-title"><h3>{room.roomName}</h3><p>{relevantDeviceCount ? `${onlineLocks + onlineKeypads}/${relevantDeviceCount} 个设备在线` : '暂无门锁设备'}</p></div>
-                  <span className={`room-online ${!relevantDeviceCount ? 'unconfigured' : onlineLocks + onlineKeypads ? 'online' : 'offline'}`} role="img" aria-label={relevantDeviceCount ? `${onlineLocks + onlineKeypads}/${relevantDeviceCount} 个设备在线` : '未配置设备'}>{relevantDeviceCount ? <i /> : <PlusIcon />}</span>
-                </div>
-                <div className="room-card-toolbar">
-                  <div className="room-card-statuses multi-lock-summary room-device-summary"><span aria-label={`${locks.length} 把门锁`}><b>{locks.length}</b><em>门锁</em></span><span aria-label={`${roomKeypadCount} 个键盘`}><b>{roomKeypadCount}</b><em>键盘</em></span></div>
-                  <div className="room-card-actions">
-                    {relevantDeviceCount > 0 && <button className="card-action detail icon-tooltip" aria-label={`管理${room.roomName}设备`} data-tooltip="进入房间" onClick={() => selectRoom(room)}>›</button>}
-                  </div>
-                </div>
-              </article>; })}
+              {filteredRooms.map((room) => {
+                const overview = roomOverview.get(room.key);
+                if (!overview) return null;
+                const hasLock = overview.locks.length > 0;
+                const lockPresentation = overview.lockStatus === 'unlocked'
+                  ? { label: '已解锁', className: 'unlocked', icon: <LockIcon open /> }
+                  : overview.lockStatus === 'locked'
+                    ? { label: '已上锁', className: 'locked', icon: <LockIcon /> }
+                    : { label: '锁状态未知', className: 'unknown', icon: <LockIcon /> };
+                return <article className={`room-card operational room-summary-card overview-room-card ${overview.state}`} key={room.key}>
+                  {hasLock ? <>
+                    <div className="room-card-head">
+                      <div className="room-card-title">
+                        <h3>{room.roomName}{overview.state === 'abnormal' && <span className="room-warning-icon" aria-label="存在异常"><AlertIcon /></span>}</h3>
+                        <p className={`room-device-line${overview.state === 'offline' ? ' offline' : ''}`}><i />{overview.state === 'offline' ? '离线' : '在线'} · {overview.deviceName}</p>
+                      </div>
+                      <span className={`room-lock-badge ${lockPresentation.className}`}>{lockPresentation.icon}<em>{lockPresentation.label}</em></span>
+                    </div>
+                    <div className={`room-card-detail ${overview.state}`}>
+                      {overview.state === 'abnormal' ? <p className="room-exception"><AlertIcon />{overview.exceptionText}</p>
+                        : overview.state === 'offline' ? <p className="room-last-online">最近在线：{displayRoomActivityTime(overview.lastOnlineAt)}</p>
+                          : <p className="room-last-unlock">最近开锁：{displayRoomActivityTime(overview.lastUnlockAt)}</p>}
+                    </div>
+                    <div className="room-card-toolbar">
+                      <div className="room-card-statuses multi-lock-summary room-device-summary">
+                        <span aria-label={`${overview.locks.length} 把门锁`}><LockIcon /><b>{overview.locks.length}</b><em>门锁</em></span>
+                        <span aria-label={`${overview.roomKeypadCount} 个键盘`}><KeypadGridIcon /><b>{overview.roomKeypadCount}</b><em>键盘</em></span>
+                      </div>
+                      <div className="room-card-actions">
+                        {overview.relevantDeviceCount > 0 && <button className="card-action detail icon-tooltip" aria-label={`管理${room.roomName}设备`} data-tooltip="进入房间" onClick={() => selectRoom(room)}>›</button>}
+                      </div>
+                    </div>
+                  </> : <>
+                    <div className="room-card-head">
+                      <div className="room-card-title"><h3>{room.roomName}</h3></div>
+                      <span className="room-lock-badge unconfigured"><em>未接入</em></span>
+                    </div>
+                    <div className="room-unconfigured-body"><span className="room-door generic-device" aria-hidden="true"><UnconfiguredLockIcon /></span><p>暂无门锁设备</p></div>
+                  </>}
+                </article>;
+              })}
               {!filteredRooms.length && <div className="rooms-empty"><strong>{loading ? '正在同步房间…' : '没有匹配的房间'}</strong><p>{auth ? '尝试更换公寓楼或搜索条件。' : `请先登录${regionName}区米家账号。`}</p></div>}
             </div>
           </div>
@@ -1446,31 +1689,33 @@ export default function LockConsole() {
           </section>}
         </section> : <div className="dashboard-grid">
           <section className="control-card">
-            <div className="card-head"><h2>门锁控制</h2><div className="lock-detail-meta"><button type="button" className="lock-log-trigger" onClick={() => { setOperationLogsOpen(true); void loadOperationLogs(selected.did, selected.model).catch(() => undefined); }}><HistoryIcon /><span>开关记录</span></button><span className="live-indicator"><i className={selected.online === false ? 'offline' : ''} />{loading ? '同步中' : selected.online === false ? '离线' : '已同步'}</span></div></div>
+            <div className="card-head"><h2>门锁控制</h2><div className="lock-detail-meta"><span className="live-indicator"><i className={selected.online === false ? 'offline' : ''} />{loading ? '同步中' : selected.online === false ? '离线' : '已同步'}</span><button type="button" className="lock-log-trigger" onClick={() => { setOperationLogsOpen(true); void loadOperationLogs(selected.did, selected.model).catch(() => undefined); }}><HistoryIcon /><span>门锁日志</span></button></div></div>
             <div className="lock-control-wrap"><div className="lock-controls">
-              <button className={`lock-control unlock-command ${isUnlocked ? 'current' : 'secondary'}`} aria-label="长按解锁" onPointerDown={startHold} onPointerUp={cancelHold} onPointerLeave={cancelHold} onPointerCancel={cancelHold} disabled={!auth || loading || !selected || !unlockAction}><span className="lock-ring"><LockIcon open /></span><strong>{unlockAction ? '长按解锁' : '不可解锁'}</strong><small>{unlockAction ? '按住约 2 秒' : '设备未公开动作'}</small></button>
-              <button className={`lock-control lock-command ${!isUnlocked ? 'current' : 'secondary'}`} aria-label="上锁" onClick={() => lockAction && openActionConfirm(lockAction)} disabled={!auth || loading || !selected || !lockAction}><span className="lock-ring"><LockIcon /></span><strong>{lockAction ? '上锁' : '不可上锁'}</strong><small>{lockAction ? '点击后确认' : '设备未公开动作'}</small></button>
-            </div></div>
+              <button className={`lock-control primary-lock-action ${lockControlMode}${holdingUnlock ? ' holding' : ''}`} aria-label={lockControlMode === 'locked' ? '长按约 2 秒解锁' : controlLabel} onPointerDown={lockControlMode === 'locked' ? startHold : undefined} onPointerUp={lockControlMode === 'locked' ? cancelHold : undefined} onPointerLeave={lockControlMode === 'locked' ? cancelHold : undefined} onPointerCancel={lockControlMode === 'locked' ? cancelHold : undefined} onBlur={lockControlMode === 'locked' ? cancelHold : undefined} onClick={lockControlMode === 'unlocked' ? () => lockAction && openActionConfirm(lockAction) : undefined} onKeyDown={lockControlMode === 'locked' ? (event) => { if ((event.key === 'Enter' || event.key === ' ') && !event.repeat) { event.preventDefault(); startHold(); } } : undefined} onKeyUp={lockControlMode === 'locked' ? (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); cancelHold(); } } : undefined} disabled={controlDisabled}><span className="lock-ring"><LockIcon open={lockControlMode === 'locked'} /></span><strong>{controlLabel}</strong><small>{controlHint}</small></button>
+            </div><span className={`lock-state-badge control-state-badge ${lockControlMode}`}><i />{statusLabel}</span></div>
             <div className="status-strip device-status-grid">
-              {statusItems.map((item) => <div className={item.reason ? 'read-failed' : ''} title={item.reason} key={item.key}>
-                <span className={`status-icon ${item.key === 'keypad' || item.key.includes('battery') ? 'emoji' : ''}`}>{item.icon}</span><p><small>{item.label}</small><strong>{item.value}</strong>{item.reason && <em>{item.reason}</em>}</p>
-              </div>)}
+              {statusItems.map((item) => {
+                const percent = item.key.includes('battery') ? batteryPercent(item.value) : null;
+                const warning = Boolean(item.reason) || /离线|未连接|异常|失败|已拆卸/.test(item.value) || (percent !== null && percent <= 30);
+                const muted = /不支持|^—$/.test(item.value);
+                return <div className={`status-item${warning ? ' warning' : ''}${muted ? ' muted' : ''}`} title={item.reason} key={item.key}>
+                  <span className="status-icon">{item.icon}</span><p><small>{item.label}</small><strong>{item.value}</strong>{item.reason && <em>{item.reason}</em>}</p>
+                </div>;
+              })}
             </div>
           </section>
           <section className="password-list-card">
             <div className="password-list-head">
               <h2>门锁密码</h2>
               <div className="password-list-actions">
-                <button className="secondary-button" aria-label="刷新密码列表" disabled={passwordSyncing || !selected} onClick={() => selected && void loadCloudPasswords(selected.did, selected.model).then(() => setMessage('已刷新米家云端密码列表')).catch(() => undefined)}>{passwordSyncing ? '刷新中…' : '↻ 刷新'}</button>
-                <button className="primary-button" onClick={() => passwordSection === 'permanent' ? openPasswordManager() : openTemporaryEditor()}>＋ {passwordSection === 'permanent' ? '永久密码' : '临时密码'}</button>
+                <button className="primary-button" onClick={() => passwordSection === 'permanent' ? openPasswordManager() : openTemporaryEditor()}><PlusIcon /><span>{passwordSection === 'permanent' ? '永久密码' : '临时密码'}</span></button>
               </div>
             </div>
-            {passwordSyncedAt && <p className="password-list-intro">更新于 {new Date(passwordSyncedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</p>}
             <div className="password-section-tabs" role="tablist" aria-label="密码类型">
               <button type="button" role="tab" aria-selected={passwordSection === 'permanent'} className={passwordSection === 'permanent' ? 'active' : ''} onClick={() => setPasswordSection('permanent')}>永久密码 <span>{managedPasswords.filter((entry) => entry.kind === 'user').length}</span></button>
               <button type="button" role="tab" aria-selected={passwordSection === 'temporary'} className={passwordSection === 'temporary' ? 'active' : ''} onClick={() => setPasswordSection('temporary')}>临时密码 <span>{temporaryPasswords.length + oneTimePasswords.length}</span></button>
             </div>
-            {passwordSection === 'permanent' ? <div className="managed-passwords password-page-list" role="tabpanel">
+              {passwordSection === 'permanent' ? <div className="managed-passwords password-page-list" role="tabpanel" tabIndex={0} aria-label="永久密码列表">
                 {passwordUserGroups.map(({ user, passwords }) => <details className="password-user-accordion" key={user.userId} open={activePasswordUserId === user.userId} onToggle={(event) => { if (event.currentTarget.open) setExpandedPasswordUserId(user.userId); else setExpandedPasswordUserId((current) => current === user.userId || activePasswordUserId === user.userId ? null : current); }}>
                   <summary>
                     <span className="password-row-icon user-icon" aria-hidden="true">人</span>
@@ -1497,12 +1742,17 @@ export default function LockConsole() {
               </div> : <div className="temporary-password-panel password-page-list" role="tabpanel">
                 <section className="temporary-password-group">
                   <div className="temporary-group-head"><div><strong>自定义密码</strong><small>日本时间 · 可创建、修改和删除</small></div><span>{temporaryPasswords.length}</span></div>
-                  {temporaryPasswords.map((entry) => <article className="temporary-password-row" key={entry.key}>
-                    <span className="password-row-copy"><strong>{entry.name}</strong><small>{entry.startsAt && entry.endsAt ? `${formatTokyoDateTime(entry.startsAt)} — ${formatTokyoDateTime(entry.endsAt)}` : '生效时间等待米家云端同步'}{entry.passwordId !== null ? ` · 编号 ${entry.passwordId}` : ''}</small></span>
-                    <span className={`temporary-state ${temporaryPasswordStatus(entry) === '生效中' ? 'active' : ''}`}>{temporaryPasswordStatus(entry)}</span>
-                    <div className="temporary-row-actions"><button type="button" disabled={loading || !entry.deletable} onClick={() => openTemporaryEditor(entry)}>修改</button><button type="button" className="danger" disabled={loading || !entry.deletable} onClick={() => { setPasswordError(''); setTemporaryEditorOpen(false); setDeleteTemporaryTarget(entry); }}>删除</button></div>
-                  </article>)}
-                  {!temporaryPasswords.length && <div className="temporary-group-empty"><strong>{passwordSyncing ? '正在同步…' : '暂无自定义密码'}</strong><small>点击右上角“临时密码”创建。</small></div>}
+                  <div className="temporary-password-scroll" tabIndex={0} aria-label="自定义密码列表">
+                    {temporaryPasswords.map((entry) => {
+                      const status = temporaryPasswordStatus(entry);
+                      const statusTone = status === '生效中' ? 'active' : status === '待生效' ? 'pending' : status === '已失效' ? 'expired' : 'syncing';
+                      return <article className="temporary-password-row" key={entry.key}>
+                        <span className="password-row-copy"><span className="temporary-password-name"><span className={`temporary-state ${statusTone}`}>{status}</span><strong>{entry.name}</strong></span><small>{entry.startsAt && entry.endsAt ? `${formatTokyoDateTime(entry.startsAt)} — ${formatTokyoDateTime(entry.endsAt)}` : '生效时间等待米家云端同步'}{entry.passwordId !== null ? ` · 编号 ${entry.passwordId}` : ''}</small></span>
+                        <div className="temporary-row-actions"><button type="button" disabled={loading || !entry.deletable} onClick={() => openTemporaryEditor(entry)}>修改</button><button type="button" className="danger" disabled={loading || !entry.deletable} onClick={() => { setPasswordError(''); setTemporaryEditorOpen(false); setDeleteTemporaryTarget(entry); }}>删除</button></div>
+                      </article>;
+                    })}
+                    {!temporaryPasswords.length && <div className="temporary-group-empty"><strong>{passwordSyncing ? '正在同步…' : '暂无自定义密码'}</strong><small>点击右上角“临时密码”创建。</small></div>}
+                  </div>
                 </section>
                 <section className="temporary-password-group one-time-password-group">
                   <div className="temporary-group-head"><div><strong>APP一次性密码</strong><small>米家 App 云端记录 · 密码内容不在列表中保存</small></div><span>{oneTimePasswords.length}</span></div>
@@ -1623,7 +1873,7 @@ export default function LockConsole() {
       {operationLogsOpen && <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="operation-logs-title">
         <section className="confirm-modal operation-logs-modal">
           <button className="modal-close" onClick={() => setOperationLogsOpen(false)} aria-label="关闭开关记录">×</button>
-          <div className="operation-logs-head"><span className="modal-badge"><HistoryIcon /></span><div><p className="section-kicker">{currentRoom?.roomName} · {selected?.name}</p><h2 id="operation-logs-title">门锁开关记录</h2></div></div>
+          <div className="operation-logs-head"><span className="modal-badge"><HistoryIcon /></span><div><p className="section-kicker">{currentRoom?.roomName} · {selected?.name}</p><h2 id="operation-logs-title">门锁日志</h2></div></div>
           <div className="operation-logs-toolbar"><p>{operationLogsSyncedAt ? `米家云端 · 更新于 ${new Date(operationLogsSyncedAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}` : '最近 90 天 · 最多 50 条'}</p><button type="button" disabled={operationLogsLoading || !selected} onClick={() => selected && void loadOperationLogs(selected.did, selected.model).catch(() => undefined)}>{operationLogsLoading ? '同步中…' : '↻ 刷新'}</button></div>
           <div className="operation-log-list" aria-live="polite">
             {operationLogs.map((entry) => <article className={`operation-log-row ${entry.action}`} key={entry.key}>
